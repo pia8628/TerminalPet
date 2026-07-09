@@ -51,4 +51,17 @@ Stop→done、SessionEnd→sleeping。全部以 `async` 背景執行，不拖慢
 ## 依賴
 
 - Python 3.12+
-- PySide6（`pip install PySide6`）
+- PySide6（`pip install -r requirements.txt`）
+
+## 在其他電腦部署
+
+各機器統一 clone 到相同路徑 `D:\Projects\TerminalPet`（Claude Code hooks 寫死此路徑）：
+
+```
+git clone https://github.com/pia8628/TerminalPet.git D:\Projects\TerminalPet
+cd D:\Projects\TerminalPet
+pip install -r requirements.txt
+```
+
+Claude Code 的桌寵 hooks 設在使用者全域 `settings.json`（隨 ClaudeSetting 同步），
+路徑一致時各機通用；若某台沒 clone 這個專案，hook 會靜默略過、不影響 Claude 運作。
