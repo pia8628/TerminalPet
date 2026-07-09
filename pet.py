@@ -14,10 +14,11 @@ import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer, QPoint
-from PySide6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen
+from PySide6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QWidget, QVBoxLayout
 
 STATE_FILE = Path.home() / ".terminalpet" / "state.json"
+ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 # 讀取間隔（毫秒）
 POLL_MS = 500
@@ -25,7 +26,9 @@ POLL_MS = 500
 IDLE_TIMEOUT_SEC = 120
 DEFAULT_STATE = "sleeping"
 
-# ---- 動物版：各狀態的佔位表情（之後換成 GIF 路徑）----
+# ---- 動物版：小狼圖檔（在 assets/），找不到檔案時退回 emoji 佔位 ----
+STATE_IMG = {s: ASSETS_DIR / f"wolf_{s}.png"
+             for s in ("thinking", "working", "waiting", "done", "sleeping")}
 STATE_ART = {
     "thinking": "🦀💭",
     "working": "🦀⚙️",
@@ -33,6 +36,7 @@ STATE_ART = {
     "done": "🦀✅",
     "sleeping": "🦀💤",
 }
+ANIMAL_SIZE = 120  # 小狼顯示邊長（px）
 
 # ---- 辦公室紅綠燈版：各狀態的顏色 ----
 STATE_COLORS = {
@@ -66,12 +70,21 @@ class PetWindow(QWidget):
         else:
             layout = QVBoxLayout(self)
             layout.setContentsMargins(0, 0, 0, 0)
-            self.label = QLabel(STATE_ART[DEFAULT_STATE])
+            self.label = QLabel()
             self.label.setAlignment(Qt.AlignCenter)
             font = QFont()
             font.setPointSize(36)
             self.label.setFont(font)
             layout.addWidget(self.label)
+            # 預先載入小狼圖（縮到顯示尺寸）；缺檔則留空，改用 emoji
+            self._pixmaps = {}
+            for s, path in STATE_IMG.items():
+                if path.exists():
+                    pm = QPixmap(str(path)).scaled(
+                        ANIMAL_SIZE, ANIMAL_SIZE,
+                        Qt.KeepAspectRatio, Qt.SmoothTransformation,
+                    )
+                    self._pixmaps[s] = pm
 
         # 定時輪詢狀態檔
         self.timer = QTimer(self)
@@ -98,8 +111,11 @@ class PetWindow(QWidget):
         self._current_state = state
         if self.theme == "light":
             self.update()  # 觸發 paintEvent 重畫圓點
+        elif state in self._pixmaps:
+            self.label.setPixmap(self._pixmaps[state])
+            self.adjustSize()
         else:
-            self.label.setText(STATE_ART[state])
+            self.label.setText(STATE_ART[state])  # 缺圖退回 emoji
             self.adjustSize()
 
     # ---- 紅綠燈版：畫圓點 ----
