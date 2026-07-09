@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 測試殘留
+pet_run.log
+pet_light.log
+
+# 執行期狀態檔（實際在 ~/.terminalpet/，這裡保險起見）
+state.json
