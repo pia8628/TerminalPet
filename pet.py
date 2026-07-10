@@ -13,15 +13,16 @@ import sys
 import time
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer, QPoint
+from PySide6.QtCore import Qt, QTimer, QPoint, QFileSystemWatcher
 from PySide6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QWidget, QVBoxLayout
 
 STATE_FILE = Path.home() / ".terminalpet" / "state.json"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
-# 讀取間隔（毫秒）
-POLL_MS = 500
+# 備援輪詢間隔（毫秒）。狀態變化主要靠 QFileSystemWatcher 即時推送，
+# 輪詢只負責「久沒更新 → 睡著」的判定，所以可以放慢。
+POLL_MS = 1000
 # 超過這麼多秒沒有新狀態，就當作睡著
 IDLE_TIMEOUT_SEC = 120
 DEFAULT_STATE = "sleeping"
@@ -86,27 +87,46 @@ class PetWindow(QWidget):
                     )
                     self._pixmaps[s] = pm
 
-        # 定時輪詢狀態檔
+        # 監看狀態檔：一有變動立刻更新（延遲趨近 0）
+        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        self._watcher = QFileSystemWatcher(self)
+        self._watcher.addPath(str(STATE_FILE.parent))
+        if STATE_FILE.exists():
+            self._watcher.addPath(str(STATE_FILE))
+        self._watcher.fileChanged.connect(self._on_state_file_changed)
+        self._watcher.directoryChanged.connect(self._on_state_file_changed)
+
+        # 備援輪詢：負責睡眠逾時判定，也兜住監看漏掉的變動
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.refresh_state)
         self.timer.start(POLL_MS)
         self.refresh_state()
 
+    def _on_state_file_changed(self, _path):
+        # Windows 上檔案被覆寫後監看可能失效，補回監看清單
+        if STATE_FILE.exists() and str(STATE_FILE) not in self._watcher.files():
+            self._watcher.addPath(str(STATE_FILE))
+        self.refresh_state()
+        # 事件可能在寫入完成前就觸發，稍後再讀一次確保拿到完整內容
+        QTimer.singleShot(100, self.refresh_state)
+
     # ---- 狀態讀取 ----
-    def read_state(self) -> str:
+    def read_state(self) -> str | None:
         try:
             data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
             state = data.get("state", DEFAULT_STATE)
             ts = data.get("ts", 0)
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
+        except FileNotFoundError:
             return DEFAULT_STATE
+        except (json.JSONDecodeError, OSError):
+            return None  # 檔案可能正在寫入，保持現狀
         if time.time() - ts > IDLE_TIMEOUT_SEC:
             return "sleeping"
         return state if state in STATE_ART else DEFAULT_STATE
 
     def refresh_state(self):
         state = self.read_state()
-        if state == self._current_state:
+        if state is None or state == self._current_state:
             return
         self._current_state = state
         if self.theme == "light":

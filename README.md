@@ -29,14 +29,22 @@ python pet.py light    # 紅綠燈版
 ## 運作方式
 
 ```
-Claude Code hooks ──呼叫──▶ set_state.py ──寫入──▶ ~/.terminalpet/state.json
+Claude Code hooks ──純 bash printf 直接寫入──▶ ~/.terminalpet/state.json
                                                         │
-                                        pet.py 每 0.5 秒讀取並更新外觀
+                                 pet.py 用 QFileSystemWatcher 監看，檔案一變立即更新
+                                 （另有每 1 秒的備援輪詢，負責閒置→睡著的判定）
 ```
 
 狀態來源由 Claude Code 的 hooks 自動驅動（設定於使用者全域 settings.json）：
 UserPromptSubmit→thinking、PreToolUse→working、Notification→waiting、
 Stop→done、SessionEnd→sleeping。全部以 `async` 背景執行，不拖慢工具呼叫。
+
+為了降低延遲，hook 不再呼叫 `set_state.py`（省去 Python 直譯器冷啟動的數百毫秒），
+改用 bash 內建的 `printf` + `$EPOCHSECONDS` 直接寫 JSON；`set_state.py` 保留給手動測試用：
+
+```
+python set_state.py waiting   # 手動切狀態，測試桌寵反應
+```
 
 ## 操作
 
@@ -56,7 +64,7 @@ Stop→done、SessionEnd→sleeping。全部以 `async` 背景執行，不拖慢
 
 ## 在其他電腦部署
 
-各機器統一 clone 到相同路徑 `D:\Projects\TerminalPet`（Claude Code hooks 寫死此路徑）：
+hooks 改為純 bash 寫入後已不依賴專案路徑，clone 到哪裡都可以（建議仍統一 `D:\Projects\TerminalPet`）：
 
 ```
 git clone https://github.com/pia8628/TerminalPet.git D:\Projects\TerminalPet
@@ -65,4 +73,4 @@ pip install -r requirements.txt
 ```
 
 Claude Code 的桌寵 hooks 設在使用者全域 `settings.json`（隨 ClaudeSetting 同步），
-路徑一致時各機通用；若某台沒 clone 這個專案，hook 會靜默略過、不影響 Claude 運作。
+不依賴本專案檔案；沒 clone 這個專案的機器只會多一個 `~/.terminalpet/state.json`，不影響 Claude 運作。
