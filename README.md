@@ -7,7 +7,7 @@
 
 | 啟動方式 | 外觀 | 適用 |
 |----------|------|------|
-| `run_pet.bat` | 動物版（螃蟹／小狼 GIF） | 個人、療癒 |
+| `run_pet.bat` | 動物版（原創小狼像素圖） | 個人、療癒 |
 | `run_office.bat` | 紅綠燈版（小圓點） | 辦公室、低調 |
 
 也可用指令啟動：
@@ -20,11 +20,11 @@ python pet.py light    # 紅綠燈版
 
 | 狀態 | 動物版 | 紅綠燈版 | 意思 |
 |------|--------|----------|------|
-| thinking | 🦀💭 | 🟡 黃 | 思考／處理中 |
-| working | 🦀⚙️ | 🟢 綠 | 自己在跑 |
-| waiting | 🦀❗ | 🔴 紅 | **需要你介入**（等批准） |
-| done | 🦀✅ | 🟢 綠 | 完成 |
-| sleeping | 🦀💤 | ⚫ 灰 | 閒置（超過 120 秒沒更新） |
+| thinking | <img src="assets/wolf_thinking.png" width="60" alt="thinking"> | 🟡 黃 | 思考／處理中 |
+| working | <img src="assets/wolf_working.png" width="60" alt="working"> | 🟢 綠 | 自己在跑 |
+| waiting | <img src="assets/wolf_waiting.png" width="60" alt="waiting"> | 🔴 紅 | **需要你介入**（等批准） |
+| done | <img src="assets/wolf_done.png" width="60" alt="done"> | 🟢 綠 | 完成 |
+| sleeping | <img src="assets/wolf_sleeping.png" width="60" alt="sleeping"> | ⚫ 灰 | 閒置（超過 120 秒沒更新） |
 
 ## 運作方式
 
