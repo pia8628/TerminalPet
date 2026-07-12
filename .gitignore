@@ -9,3 +9,10 @@ pet_light.log
 
 # 執行期狀態檔（實際在 ~/.terminalpet/，這裡保險起見）
 state.json
+
+# PyInstaller 建置產物（用 scripts/build.ps1 重新產生，不進版控）
+/dist/
+/pyinstaller-work/
+/release/
+build/icon.ico
+

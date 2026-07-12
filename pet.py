@@ -18,7 +18,11 @@ from PySide6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixma
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QWidget, QVBoxLayout
 
 STATE_FILE = Path.home() / ".terminalpet" / "state.json"
-ASSETS_DIR = Path(__file__).resolve().parent / "assets"
+if getattr(sys, "frozen", False):
+    # PyInstaller 凍結後 __file__ 不指向真實安裝路徑，資源改從 _MEIPASS 讀取
+    ASSETS_DIR = Path(sys._MEIPASS) / "assets"
+else:
+    ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
 # 備援輪詢間隔（毫秒）。狀態變化主要靠 QFileSystemWatcher 即時推送，
 # 輪詢只負責「久沒更新 → 睡著」的判定，所以可以放慢。
