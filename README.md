@@ -29,18 +29,28 @@ python pet.py light    # 紅綠燈版
 ## 運作方式
 
 ```
-Claude Code hooks ──純 bash printf 直接寫入──▶ ~/.terminalpet/state.json
-                                                        │
-                                 pet.py 用 QFileSystemWatcher 監看，檔案一變立即更新
-                                 （另有每 1 秒的備援輪詢，負責閒置→睡著的判定）
+Claude Code hooks ──呼叫 scripts/pet-state.sh──▶ ~/.terminalpet/sessions/<session_id>.json
+（每個 session 各一檔，原子寫入）                              │
+                                       pet.py 掃整個 sessions/ 資料夾，
+                                       取「優先級最高」的狀態顯示
+                                       （waiting > working > thinking > done > sleeping）
+                                       每 250ms 輪詢一次，另有 QFileSystemWatcher 加速偵測
 ```
 
 狀態來源由 Claude Code 的 hooks 自動驅動（設定於使用者全域 settings.json）：
 UserPromptSubmit→thinking、PreToolUse→working、Notification→waiting、
 Stop→done、SessionEnd→sleeping。全部以 `async` 背景執行，不拖慢工具呼叫。
 
-為了降低延遲，hook 不再呼叫 `set_state.py`（省去 Python 直譯器冷啟動的數百毫秒），
-改用 bash 內建的 `printf` + `$EPOCHSECONDS` 直接寫 JSON；`set_state.py` 保留給手動測試用：
+### 多 session
+
+多個 Claude Code session 同時跑時，各自的 hook 會依 payload 裡的 `session_id`
+寫到自己專屬的檔案，不會互相蓋燈。桌寵永遠顯示「優先級最高」的狀態，
+`waiting`（有 session 在等你核准）一定蓋過其他狀態，避免漏看。
+超過 120 秒沒更新的 session 視為睡著；超過 1 小時沒更新的 session 檔會被清掉。
+
+### 手動測試
+
+`set_state.py` 是給手動測試用的小工具，會寫一個名為 `manual` 的假 session：
 
 ```
 python set_state.py waiting   # 手動切狀態，測試桌寵反應
@@ -62,15 +72,21 @@ python set_state.py waiting   # 手動切狀態，測試桌寵反應
 - Python 3.12+
 - PySide6（`pip install -r requirements.txt`）
 
-## 在其他電腦部署
+## 安裝 / 在其他電腦部署
 
-hooks 改為純 bash 寫入後已不依賴專案路徑，clone 到哪裡都可以（建議仍統一 `D:\Projects\TerminalPet`）：
+不同使用者（不同 `~/.claude` 路徑）都可以用同一支腳本安裝，不用手動改 JSON：
 
 ```
 git clone https://github.com/pia8628/TerminalPet.git D:\Projects\TerminalPet
 cd D:\Projects\TerminalPet
 pip install -r requirements.txt
+python install.py            # 把桌寵 hooks 併入 ~/.claude/settings.json
+python install.py --dry-run  # 只想先看看會改什麼，不實際寫入
 ```
 
-Claude Code 的桌寵 hooks 設在使用者全域 `settings.json`（隨 ClaudeSetting 同步），
-不依賴本專案檔案；沒 clone 這個專案的機器只會多一個 `~/.terminalpet/state.json`，不影響 Claude 運作。
+`install.py` 只會動 `hooks` 區塊裡桌寵相關的那幾條，不影響 `permissions`、
+`guard-tool.sh`、`statusLine` 等其他既有設定；重複執行是安全的（幂等），
+之後這份腳本有更新，重跑一次就會同步。
+
+沒 clone 這個專案、也沒跑過 `install.py` 的機器，桌寵 hooks 不會生效，
+但完全不影響 Claude Code 本身運作。

@@ -17,15 +17,31 @@ from PySide6.QtCore import Qt, QTimer, QPoint, QFileSystemWatcher
 from PySide6.QtGui import QAction, QFont, QPainter, QColor, QBrush, QPen, QPixmap
 from PySide6.QtWidgets import QApplication, QLabel, QMenu, QWidget, QVBoxLayout
 
-STATE_FILE = Path.home() / ".terminalpet" / "state.json"
+STATE_DIR = Path.home() / ".terminalpet"
+# 每個 Claude Code session 各寫一個狀態檔到這個資料夾（由 pet-state.sh 寫入）。
+SESSIONS_DIR = STATE_DIR / "sessions"
+# 舊版單一狀態檔，sessions/ 為空時作為回退來源，方便平滑升級。
+LEGACY_STATE_FILE = STATE_DIR / "state.json"
 ASSETS_DIR = Path(__file__).resolve().parent / "assets"
 
-# 備援輪詢間隔（毫秒）。狀態變化主要靠 QFileSystemWatcher 即時推送，
-# 輪詢只負責「久沒更新 → 睡著」的判定，所以可以放慢。
-POLL_MS = 1000
-# 超過這麼多秒沒有新狀態，就當作睡著
+# 輪詢間隔（毫秒）。Windows 的 QFileSystemWatcher 對「檔案覆寫」偵測不可靠，
+# 實務上是靠這個輪詢兜底，所以間隔就是使用者感受到的最壞延遲，設短一點。
+POLL_MS = 250
+# 超過這麼多秒沒有新狀態，就當作該 session 睡著
 IDLE_TIMEOUT_SEC = 120
+# 超過這麼久沒更新的 session 檔視為過期，直接清掉，避免累積
+SESSION_STALE_SEC = 3600
 DEFAULT_STATE = "sleeping"
+
+# 多 session 聚合時的優先級：數字越大越優先顯示。
+# 「需要你介入（waiting）」永遠蓋過其他狀態，才不會漏看要核准的 session。
+STATE_PRIORITY = {
+    "waiting": 4,
+    "working": 3,
+    "thinking": 2,
+    "done": 1,
+    "sleeping": 0,
+}
 
 # ---- 動物版：小狼圖檔（在 assets/），找不到檔案時退回 emoji 佔位 ----
 STATE_IMG = {s: ASSETS_DIR / f"wolf_{s}.png"
@@ -87,13 +103,11 @@ class PetWindow(QWidget):
                     )
                     self._pixmaps[s] = pm
 
-        # 監看狀態檔：一有變動立刻更新（延遲趨近 0）
-        STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
+        # 監看 sessions 資料夾：session 檔案會一直增減，只監看目錄本身就夠，
+        # 目錄事件（新增/刪除/覆寫其中檔案）在 Windows 上比逐檔監看穩定。
+        SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
         self._watcher = QFileSystemWatcher(self)
-        self._watcher.addPath(str(STATE_FILE.parent))
-        if STATE_FILE.exists():
-            self._watcher.addPath(str(STATE_FILE))
-        self._watcher.fileChanged.connect(self._on_state_file_changed)
+        self._watcher.addPath(str(SESSIONS_DIR))
         self._watcher.directoryChanged.connect(self._on_state_file_changed)
 
         # 備援輪詢：負責睡眠逾時判定，也兜住監看漏掉的變動
@@ -103,24 +117,68 @@ class PetWindow(QWidget):
         self.refresh_state()
 
     def _on_state_file_changed(self, _path):
-        # Windows 上檔案被覆寫後監看可能失效，補回監看清單
-        if STATE_FILE.exists() and str(STATE_FILE) not in self._watcher.files():
-            self._watcher.addPath(str(STATE_FILE))
+        # 目錄監看在部分情況下會被系統移除，補回監看清單
+        if str(SESSIONS_DIR) not in self._watcher.directories():
+            self._watcher.addPath(str(SESSIONS_DIR))
         self.refresh_state()
         # 事件可能在寫入完成前就觸發，稍後再讀一次確保拿到完整內容
         QTimer.singleShot(100, self.refresh_state)
 
-    # ---- 狀態讀取 ----
-    def read_state(self) -> str | None:
+    # ---- 單一 session 檔讀取（回傳 None 代表讀不到/正在寫入，呼叫端應忽略） ----
+    @staticmethod
+    def _read_session_file(path: Path):
         try:
-            data = json.loads(STATE_FILE.read_text(encoding="utf-8"))
-            state = data.get("state", DEFAULT_STATE)
-            ts = data.get("ts", 0)
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return None
+        state = data.get("state", DEFAULT_STATE)
+        ts = data.get("ts", 0)
+        if state not in STATE_PRIORITY:
+            state = DEFAULT_STATE
+        return state, ts
+
+    # ---- 狀態讀取：掃全部 session 檔，取優先級最高者 ----
+    def read_state(self) -> str | None:
+        now = time.time()
+        best_state = None
+        best_priority = -1
+        any_session = False
+
+        if SESSIONS_DIR.exists():
+            for path in SESSIONS_DIR.glob("*.json"):
+                parsed = self._read_session_file(path)
+                if parsed is None:
+                    continue
+                state, ts = parsed
+                age = now - ts
+                if age > SESSION_STALE_SEC:
+                    # 早就沒在跑的 session，清掉避免資料夾一直長大
+                    try:
+                        path.unlink()
+                    except OSError:
+                        pass
+                    continue
+                any_session = True
+                if age > IDLE_TIMEOUT_SEC:
+                    state = "sleeping"
+                priority = STATE_PRIORITY[state]
+                if priority > best_priority:
+                    best_priority = priority
+                    best_state = state
+
+        if any_session:
+            return best_state
+
+        # 沒有任何 session 檔：回退舊版單一狀態檔，方便從舊版平滑升級
+        try:
+            data = json.loads(LEGACY_STATE_FILE.read_text(encoding="utf-8"))
         except FileNotFoundError:
             return DEFAULT_STATE
         except (json.JSONDecodeError, OSError):
-            return None  # 檔案可能正在寫入，保持現狀
-        if time.time() - ts > IDLE_TIMEOUT_SEC:
+            return None
+        state = data.get("state", DEFAULT_STATE)
+        ts = data.get("ts", 0)
+        if now - ts > IDLE_TIMEOUT_SEC:
             return "sleeping"
         return state if state in STATE_ART else DEFAULT_STATE
 
