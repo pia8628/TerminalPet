@@ -71,6 +71,8 @@ python set_state.py waiting   # 手動切狀態，測試桌寵反應
 
 - Python 3.12+
 - PySide6（`pip install -r requirements.txt`）
+- Git for Windows（hooks 是 bash 腳本，需要 Git Bash 才能執行；有裝 git 就有）
+- Claude Code 建議用較新版本（紅燈用到 Notification 的通知類型 matcher，舊版不支援時紅燈不會亮，其他燈不受影響）
 
 ## 安裝 / 在其他電腦部署
 
@@ -87,6 +89,9 @@ python install.py --dry-run  # 只想先看看會改什麼，不實際寫入
 `install.py` 只會動 `hooks` 區塊裡桌寵相關的那幾條，不影響 `permissions`、
 `guard-tool.sh`、`statusLine` 等其他既有設定；重複執行是安全的（幂等），
 之後這份腳本有更新，重跑一次就會同步。
+
+裝完（或更新 hooks 後）要**重啟 Claude Code session**（或開一次 `/hooks`）
+新的 hooks 設定才會生效；桌寵本身（pet.py）隨時可以重開，不用等。
 
 沒 clone 這個專案、也沒跑過 `install.py` 的機器，桌寵 hooks 不會生效，
 但完全不影響 Claude Code 本身運作。
