@@ -38,13 +38,21 @@ EVENT_STATE = {
     "SessionEnd": "sleeping",
 }
 
+# 事件的 matcher（沒列的事件不設，匹配全部）。
+# Notification 涵蓋多種通知：permission_prompt（等你批准）、idle_prompt（閒置
+# 60 秒等輸入）、auth_success…等。紅燈只該在「真的需要介入」時亮，
+# 不過濾的話，每次收工閒置 60 秒就會被 idle_prompt 點成紅燈。
+EVENT_MATCHER = {
+    "Notification": "permission_prompt|agent_needs_input",
+}
+
 # 用來辨識「這個 hook command 是桌寵寫的」，涵蓋舊版與新版寫法，
 # 這樣重跑安裝時才能正確替換掉舊的，而不是疊加。
 PET_HOOK_MARKERS = ("pet-state.sh", "terminalpet/state.json")
 
 
-def make_pet_hook_group(state: str) -> dict:
-    return {
+def make_pet_hook_group(event: str, state: str) -> dict:
+    group = {
         "hooks": [
             {
                 "type": "command",
@@ -54,6 +62,9 @@ def make_pet_hook_group(state: str) -> dict:
             }
         ]
     }
+    if event in EVENT_MATCHER:
+        group = {"matcher": EVENT_MATCHER[event], **group}
+    return group
 
 
 def merge_hooks(settings: dict) -> list[str]:
@@ -70,7 +81,7 @@ def merge_hooks(settings: dict) -> list[str]:
                 had_pet_hook = True
                 continue
             kept.append(group)
-        new_group = make_pet_hook_group(state)
+        new_group = make_pet_hook_group(event, state)
         kept.append(new_group)
         if kept != groups:
             changes.append(f"{event}: {'更新' if had_pet_hook else '新增'}桌寵 hook -> {state}")
