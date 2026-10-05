@@ -4,6 +4,19 @@
 **每個 Claude Code session 各一個燈**——同時開好幾個終端機時，
 瞄一眼就知道是哪個專案在等你批准、哪個已經做完。
 
+> A tiny always-on-top desktop indicator for [Claude Code](https://claude.com/claude-code).
+> Each session gets its own light (waiting for approval / done / working / thinking / idle),
+> driven by Claude Code hooks. Windows-first (PySide6 + Git Bash); hooks also work on macOS/Linux.
+> Install the hooks with `/plugin marketplace add pia8628/TerminalPet`.
+
+<p>
+<img src="assets/screenshots/animal_labels.png" height="250" alt="動物版＋顯示專案名稱">
+&nbsp;&nbsp;
+<img src="assets/screenshots/light_labels.png" alt="紅綠燈版＋顯示專案名稱">
+&nbsp;&nbsp;
+<img src="assets/screenshots/light_dots.png" alt="紅綠燈版">
+</p>
+
 ## 兩種外觀
 
 | 啟動方式 | 外觀 | 適用 |
@@ -17,16 +30,8 @@ python pet.py          # 動物版
 python pet.py light    # 紅綠燈版
 ```
 
-右鍵 →「顯示專案名稱」可把燈列展開成清單：
-
-```
-● TerminalPet    等你處理 3 分     ← 紅燈會閃
-● ClaudeSetting  執行中 剛剛
-● blog #1        完成 10 分
-● blog #2        思考中 剛剛       ← 同一個專案開多個 session 會自動編號
-● 終端寵物        閒置
-```
-
+右鍵 →「顯示專案名稱」可把燈列展開成清單（如上圖），等你處理的紅燈會閃爍，
+同一個專案開多個 session 會自動編號。
 不展開時，滑鼠停在燈上也會顯示該 session 的專案、狀態、經過時間與路徑。
 
 ## 狀態對應
@@ -138,6 +143,15 @@ python set_state.py clear    # 清掉所有假 session
 - [ ] 偵測 Claude 程序已結束（終端機直接關掉）時立即移除
 - [ ] 小狼改 2 格輪播做出動畫感
 - [ ] 打包成 `pipx install` 或單一 exe，免裝 Python
+
+## 設計參考
+
+開發時參考過這些同類開源專案的做法（未使用其程式碼）：
+
+- [clawd-on-desk](https://github.com/rullerzhou-afk/clawd-on-desk)：hook 直接驅動、輪詢只當備援
+- [Claude Status Bar](https://github.com/m1ckc3s/claude-status-bar)：聚合燈＋所有 session 清單、waiting 永遠優先
+- [Claude Usage Monitor for Windows](https://github.com/sr-kai/claudeusagewin)：每個 session 一個圓點
+- [ccmonitor](https://github.com/martinwickman/ccmonitor)：以 Claude Code plugin marketplace 發佈 hooks
 
 ## 授權
 
