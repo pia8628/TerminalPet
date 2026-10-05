@@ -40,9 +40,9 @@ tags: [ai_log, ai_log/個人任務]
 - [x] pet.py offscreen 測試多 session 聚合與逾時
 - [x] install.py --dry-run（安裝與 --uninstall 兩種）
 - [x] plugin 版 hooks 以 `claude -p --plugin-dir .` 實測（Windows）：idle → thinking → done 正確寫入
-- [ ] 本機 ~/.claude 的 hooks 更新（install.py 實裝，或改用 plugin）——動到 ClaudeSetting repo，待使用者決定
-- [ ] 實機開 pet.py 確認拖曳、右鍵選單、通知、開機啟動
-- [ ] 授權條款（LICENSE）——公開分享前由使用者決定
+- [x] 本機 ~/.claude 的 hooks 更新（install.py 實裝、MACHINES.md 新增待辦，兩 repo 已 commit 未 push）
+- [x] 實機試用（使用者確認 OK）
+- [x] 授權條款：MIT（著作權人 佳臨 (pia8628)）
 
 ## 發現
 - 狀態語意問題比延遲更影響使用：waiting 120 秒變灰、done/working 同為綠色、批准後紅燈卡住、done 優先級低於 working 導致多 session 時看不到完成訊號。

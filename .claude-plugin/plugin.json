@@ -12,5 +12,6 @@
     "desktop",
     "notification",
     "multi-session"
-  ]
+  ],
+  "license": "MIT"
 }

@@ -132,9 +132,13 @@ python set_state.py clear    # 清掉所有假 session
 
 ## 待辦
 
-- [x] 動物版換成自製原創小狼像素圖（`assets/wolf_*.png`，橘色 Q 版，版權自有）
+- [x] 動物版換成原創小狼像素圖（`assets/wolf_*.png`，橘色 Q 版）
 - [x] 多 session 個別顯示、開機自動啟動、桌面通知
 - [ ] 點擊 session 跳到對應的終端機視窗／分頁
 - [ ] 偵測 Claude 程序已結束（終端機直接關掉）時立即移除
 - [ ] 小狼改 2 格輪播做出動畫感
 - [ ] 打包成 `pipx install` 或單一 exe，免裝 Python
+
+## 授權
+
+[MIT License](LICENSE)。小狼圖（`assets/wolf_*.png`）為本專案以 AI 生成的原創圖，隨專案以同一授權釋出。
