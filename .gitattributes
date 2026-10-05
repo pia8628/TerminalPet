@@ -1,0 +1,5 @@
+# hook 腳本固定 LF（給 bash 執行），.bat 固定 CRLF（給 cmd 執行）
+* text=auto
+*.sh text eol=lf
+*.bat text eol=crlf
+*.png binary
