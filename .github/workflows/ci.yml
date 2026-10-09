@@ -1,0 +1,32 @@
+# GitHub Actions CI（dev-ci-setup）
+# 先快後慢：lint（Linux，最快）→ test（Windows，與使用者環境一致，內建 Git Bash 才能跑 HOOK 測試）
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff==0.16.10  # 與 .pre-commit-config.yaml 同版本
+      - run: ruff check .
+
+  test:
+    needs: lint
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt pytest
+      # -rs 列出被略過的測試；HOOK 測試不應被略過（Windows runner 內建 Git Bash）
+      - run: python -m pytest tests -rs
