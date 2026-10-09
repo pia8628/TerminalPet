@@ -1,0 +1,14 @@
+{
+  "name": "terminalpet",
+  "description": "TerminalPet：監看多個 Claude Code session 狀態的桌面小工具",
+  "owner": {
+    "name": "pia8628"
+  },
+  "plugins": [
+    {
+      "name": "terminalpet",
+      "source": "./",
+      "description": "TerminalPet 桌寵的 Claude Code hooks（多 session 狀態燈）"
+    }
+  ]
+}

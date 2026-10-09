@@ -1,0 +1,17 @@
+{
+  "name": "terminalpet",
+  "version": "0.2.0",
+  "description": "TerminalPet 桌寵的 Claude Code hooks：把每個 session 的狀態寫到 ~/.terminalpet/sessions/，由桌面小工具 pet.py 顯示。",
+  "author": {
+    "name": "pia8628"
+  },
+  "homepage": "https://github.com/pia8628/TerminalPet",
+  "repository": "https://github.com/pia8628/TerminalPet",
+  "keywords": [
+    "status",
+    "desktop",
+    "notification",
+    "multi-session"
+  ],
+  "license": "MIT"
+}
