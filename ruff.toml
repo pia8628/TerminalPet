@@ -1,0 +1,8 @@
+# Ruff 設定：程式碼檢查（lint）
+target-version = "py312"
+line-length = 120
+extend-exclude = ["build", "dist", "pyinstaller-work", "release", "venv"]
+
+[lint]
+# E/F：基本錯誤與未使用變數；I：import 排序；B：常見 bug 寫法；UP：可用新語法改寫
+select = ["E", "F", "I", "B", "UP"]

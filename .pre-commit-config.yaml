@@ -1,0 +1,6 @@
+# commit 前自動跑 Ruff 檢查（安裝：venv/Scripts/pre-commit install）
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.10
+    hooks:
+      - id: ruff-check

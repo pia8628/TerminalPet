@@ -16,3 +16,18 @@ state.json
 /release/
 build/icon.ico
 
+
+# 機密：API 金鑰與環境變數，絕不上傳
+.env
+.env.*
+
+# 可重建：python -m venv 會重新產生
+venv/
+
+# 工具快取
+.pytest_cache/
+.ruff_cache/
+
+# 雜項
+*.log
+.DS_Store
