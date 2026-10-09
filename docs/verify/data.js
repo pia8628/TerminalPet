@@ -16,11 +16,11 @@ window.VERIFY_DATA = {
     {
       id: "click-to-terminal",
       name: "點擊跳到終端機",
-      status: "verifying",
-      closedAt: null,
-      closedNote: "",
-      specRef: "docs/specs/changes/click-to-terminal/delta.md",
-      allTicketsLoaded: false,
+      status: "closed",
+      closedAt: "2026-10-09",
+      closedNote: "使用者在對話中回報整合驗收通過；兩項人工必測通過、0 項不通過；略過項記為延後觀察（見專案進度追蹤）；拖曳門檻依實際 10 px 修訂規格",
+      specRef: "docs/specs/done/2026-10-09-click-to-terminal/delta.md",
+      allTicketsLoaded: true,
 
       tickets: [
         {
@@ -732,6 +732,46 @@ window.VERIFY_DATA = {
           "verified": {
             "at": "2026-10-09T23:24:22+08:00",
             "note": "使用者在對話中回報「07過了」"
+          }
+        },
+        {
+          "id": "integration",
+          "title": "跨卡整合驗收",
+          "sequence": false,
+          "items": [
+            {
+              "id": "click-to-terminal/integration/new-session-title-then-jump",
+              "text": "紅綠燈版。在 WT **新開一個分頁**、啟動 Claude Code，先**什麼都不要問**，馬上點桌寵上它的新燈（或右鍵 → 它的子選單 →「切換到終端機」）。\n\n預期 ①：出現「找不到這個 session 的分頁」（還沒有標題），約 3 秒消失。\n\n接著在那個分頁問一句話，等分頁標題從 `Claude Code` 變成 Claude 取的標題後，切到別的分頁，再點一次它的燈。\n\n預期 ②：這次切到那個新分頁。",
+              "spec": {
+                "ref": "AC-HOOK-15 → AC-JUMP-14 → AC-JUMP-01",
+                "quote": "（串接 02 寫入紀錄檔路徑、04 沒標題提示、05 點燈跳轉的端到端流程）"
+              },
+              "risk": "medium",
+              "riskReason": "各卡單獨驗過，但「新 session 從沒標題到有標題」這段真實時序沒有任何一張卡走過",
+              "coverage": {
+                "auto": {
+                  "covered": false,
+                  "ref": ""
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "要真的開新 Claude Code session；錯了一眼就看得到、不傷資料",
+              "manualSuggested": true,
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者在對話中回報通過",
+                "at": "2026-10-09T23:30:11+08:00"
+              }
+            }
+          ],
+          "verified": {
+            "at": "2026-10-09T23:30:11+08:00",
+            "note": "使用者在對話中回報「通過」"
           }
         }
       ]
