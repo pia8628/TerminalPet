@@ -2,7 +2,8 @@
 
 一個透明、無邊框、永遠置頂的小視窗，讀取 ~/.terminalpet/sessions/ 底下
 每個 Claude Code session 的狀態檔，每個 session 各顯示一個燈。
-可用滑鼠拖曳，右鍵選單可切換外觀、顯示專案名稱、桌面通知等。
+可用滑鼠拖曳；紅綠燈版左鍵點一下某個 session 的圓點（或清單列）可切到它的終端機分頁；
+右鍵選單可切換外觀、顯示專案名稱、桌面通知等。
 
 兩種外觀（啟動參數會記住，之後不帶參數就沿用上次的外觀）：
     python pet.py            動物版（小狼顯示最需要注意的狀態，下方是各 session 燈）
@@ -438,6 +439,8 @@ class PetWindow(QWidget):
         self._signature = None
         self._last_states: dict[str, str] | None = None  # None = 尚未讀過，第一次不發通知
         self._drag_offset = QPoint()
+        self._press_global = QPoint()
+        self._pressed = False
         self._dragged = False
         self._wolf_rect = QRect()
         self._hits: list[tuple[QRect, Session | None]] = []
@@ -662,23 +665,46 @@ class PetWindow(QWidget):
         now = time.time()
         return "\n".join(session_text(s, now) for s in self.sessions)
 
-    # ---- 拖曳 ----
+    # ---- 拖曳與點一下 ----
+    # 左鍵按下到放開之間，移動距離超過系統拖曳門檻（QApplication.startDragDistance()）才算拖曳：
+    # 移動桌寵並記住位置。未超過門檻算「點一下」：桌寵不動、不記位置，點在圓點／清單列上才跳轉。
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._press_global = event.globalPosition().toPoint()
+            self._drag_offset = self._press_global - self.frameGeometry().topLeft()
+            self._pressed = True
             self._dragged = False
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() & Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
-            self._dragged = True
+        if self._pressed and event.buttons() & Qt.LeftButton:
+            pos = event.globalPosition().toPoint()
+            if not self._dragged:
+                if (pos - self._press_global).manhattanLength() <= QApplication.startDragDistance():
+                    return  # 還沒超過門檻：可能只是點一下時手抖，不移動
+                self._dragged = True
+            self.move(pos - self._drag_offset)
             event.accept()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self._dragged:
+        if event.button() != Qt.LeftButton or not self._pressed:
+            return
+        self._pressed = False
+        if self._dragged:
             self.config["pos"] = [self.x(), self.y()]
             save_config(self.config)
+        else:
+            self._on_click(event.position().toPoint())
+
+    def _on_click(self, pos: QPoint):
+        """點一下：紅綠燈版點在 session 的圓點或清單列上就切到它的終端機，其他位置沒有反應。"""
+        if self.config["theme"] != "light" or not wt_jump.supported():
+            return  # 動物版點擊另行處理；非 Windows 不動作、不出提示
+        for rect, s in self._hits:
+            if rect.contains(pos):
+                if s:  # 沒有 session 時那顆灰點（s 為 None）點了沒反應
+                    self._jump_to(s.transcript)
+                return
 
     def moveEvent(self, event):
         super().moveEvent(event)

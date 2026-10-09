@@ -485,3 +485,166 @@ def test_AC_JUMP_18_hint_disappears_by_itself_and_does_not_block_pet(pet_window,
     wait_for(qapp, lambda: not w._hint.isVisible(), timeout=2)
     assert not w._hint.isVisible()
     w.hide()
+
+
+# ---- 點圓點或清單列直接跳轉（05 卡） ----
+
+def mouse(w, kind: str, local, buttons=None):
+    """對桌寵送一個左鍵滑鼠事件；local 是桌寵內的座標，全域座標用桌寵目前位置換算。"""
+    from PySide6.QtCore import QEvent, QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QApplication
+    types = {"press": QEvent.MouseButtonPress, "move": QEvent.MouseMove,
+             "release": QEvent.MouseButtonRelease}
+    button = Qt.NoButton if kind == "move" else Qt.LeftButton
+    if buttons is None:
+        buttons = Qt.NoButton if kind == "release" else Qt.LeftButton
+    global_pos = w.frameGeometry().topLeft() + local
+    event = QMouseEvent(types[kind], QPointF(local), QPointF(global_pos), button, buttons,
+                        Qt.NoModifier)
+    QApplication.sendEvent(w, event)
+
+
+def press_move_release(w, start, offsets=()):
+    """左鍵按在 start，依序移動 offsets（相對按下點的位移），再放開；回傳放開前最後的位移。"""
+    from PySide6.QtCore import QPoint
+    mouse(w, "press", start)
+    origin = w.frameGeometry().topLeft()  # 拖曳中桌寵會移動，滑鼠的全域位置以按下時為準
+    last = QPoint(0, 0)
+    for dx, dy in offsets:
+        last = QPoint(dx, dy)
+        local = start + last - (w.frameGeometry().topLeft() - origin)
+        mouse(w, "move", local)
+    local = start + last - (w.frameGeometry().topLeft() - origin)
+    mouse(w, "release", local)
+
+
+@pytest.fixture
+def light_pet(pet_window, monkeypatch):
+    """紅綠燈版桌寵（Windows），記下觸發的跳轉與存設定的次數。"""
+    from PySide6.QtCore import QPoint
+
+    def make(*sessions, labels=False):
+        monkeypatch.setattr(pet.wt_jump, "supported", lambda: True)
+        w = pet_window(*sessions)
+        w.config["theme"] = "light"
+        w.config["show_labels"] = labels
+        w.refresh()
+        w.move(QPoint(400, 300))
+        w.started, w.saves = [], []
+        monkeypatch.setattr(w._jumper, "start", w.started.append)
+        monkeypatch.setattr(pet, "save_config", lambda c: w.saves.append(dict(c)))
+        return w
+
+    return make
+
+
+def hit_of(w, sid):
+    return next(rect for rect, s in w._hits if s and s.sid == sid)
+
+
+def test_AC_JUMP_01_click_dot_jumps_to_that_session(light_pet):
+    w = light_pet(("s1", "", "C:/t/s1.jsonl"), ("abc123", "", "C:/t/abc123.jsonl"))
+    before = w.pos()
+
+    press_move_release(w, hit_of(w, "abc123").center())
+
+    assert w.started == ["C:/t/abc123.jsonl"]
+    assert w.pos() == before  # 桌寵位置不變
+    assert w.saves == []  # 不記位置
+    assert not w._hint.isVisible()  # 點下去的當下不出提示
+
+
+def test_AC_JUMP_02_click_row_text_jumps_when_labels_shown(light_pet):
+    from PySide6.QtCore import QPoint
+    w = light_pet(("s1", "", "C:/t/s1.jsonl"), ("abc123", "", "C:/t/abc123.jsonl"), labels=True)
+    row = hit_of(w, "abc123")
+
+    press_move_release(w, QPoint(row.right() - 3, row.center().y()))  # 點文字那一側
+    press_move_release(w, QPoint(row.x() + pet.ROW_PAD + pet.ROW_DIAMETER // 2, row.center().y()))  # 點圓點
+
+    assert w.started == ["C:/t/abc123.jsonl", "C:/t/abc123.jsonl"]
+
+
+def test_AC_JUMP_07_drag_30px_from_dot_moves_and_saves_without_jump(light_pet):
+    w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
+    before = w.pos()
+
+    press_move_release(w, hit_of(w, "abc123").center(), [(10, 0), (20, 0), (30, 0)])
+
+    assert w.pos() == before + pet.QPoint(30, 0)  # 桌寵跟著滑鼠移到新位置
+    assert w.saves and w.saves[-1]["pos"] == [w.x(), w.y()]  # 記住位置
+    assert w.started == []  # 不切換分頁
+
+
+def test_AC_OPS_04_move_within_drag_threshold_is_a_click(light_pet):
+    from PySide6.QtWidgets import QApplication
+    w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
+    before = w.pos()
+    threshold = QApplication.startDragDistance()
+
+    press_move_release(w, hit_of(w, "abc123").center(), [(threshold, 0)])  # 剛好等於門檻：未超過
+
+    assert w.pos() == before  # 桌寵不移動
+    assert w.saves == []  # 不更新記住的位置
+    assert w.started == ["C:/t/abc123.jsonl"]  # 視為點一下
+
+
+def test_AC_OPS_04_move_just_over_threshold_is_a_drag(light_pet):
+    from PySide6.QtWidgets import QApplication
+    w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
+    threshold = QApplication.startDragDistance()
+
+    press_move_release(w, hit_of(w, "abc123").center(), [(threshold + 1, 0)])
+
+    assert w.saves  # 超過門檻：算拖曳，記位置
+    assert w.started == []
+
+
+def test_AC_OPS_04_click_outside_dots_does_nothing(light_pet):
+    from PySide6.QtCore import QPoint
+    w = light_pet(("s1", "", "C:/t/s1.jsonl"), ("abc123", "", "C:/t/abc123.jsonl"))
+    before = w.pos()
+    gap = QPoint(hit_of(w, "s1").right() + pet.DOT_GAP // 2 + 1, hit_of(w, "s1").center().y())
+    assert not any(rect.contains(gap) for rect, _s in w._hits)
+
+    press_move_release(w, gap)  # 兩顆圓點之間的空隙
+    press_move_release(w, QPoint(0, 0))  # 左上角邊緣
+
+    assert w.started == []
+    assert w.pos() == before
+    assert w.saves == []
+
+
+def test_AC_JUMP_12_grey_dot_without_session_does_nothing(light_pet):
+    w = light_pet()
+    assert len(w._hits) == 1 and w._hits[0][1] is None  # 只有 1 顆灰點
+
+    press_move_release(w, w._hits[0][0].center())
+
+    assert w.started == []
+    assert w.saves == []
+
+
+def test_AC_JUMP_08_click_on_non_windows_does_nothing(light_pet, monkeypatch, qapp):
+    w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
+    monkeypatch.setattr(pet.wt_jump, "supported", lambda: False)
+
+    press_move_release(w, hit_of(w, "abc123").center())
+    wait_for(qapp, lambda: False, timeout=0.1)
+
+    assert w.started == []
+    assert not w._hint.isVisible()
+
+
+def test_animal_theme_click_does_not_move_or_save(light_pet):
+    # 動物版的點擊（點小狼跳轉）屬於 06 卡；這裡只守「點一下不移動、不記位置」
+    w = light_pet(("s1", "", "C:/t/s1.jsonl"))
+    w.config["theme"] = "animal"
+    w.refresh()
+    before = w.pos()
+
+    press_move_release(w, w._wolf_rect.center())
+
+    assert w.pos() == before
+    assert w.saves == []

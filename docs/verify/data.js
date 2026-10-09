@@ -399,6 +399,84 @@ window.VERIFY_DATA = {
               "crossEnv": false
             }
           ]
+        },
+        {
+          "id": "05-click-dot-to-jump",
+          "title": "05 點圓點或清單列直接跳轉",
+          "items": [
+            {
+              "id": "click-to-terminal/05-click-dot-to-jump/AC-JUMP-01-02",
+              "text": "紅綠燈版，先切到別的程式（例如瀏覽器）。**左鍵點一下**某個 session 的小圓點；再到右鍵開啟「顯示專案名稱」，點另一個 session 那一列的**文字**。\n\n預期：\n- 每次 WT 都跳到最前面，選中那個 session 的分頁\n- 桌寵位置沒動、沒有出現提示",
+              "spec": {
+                "ref": "delta.md AC-JUMP-01、02",
+                "quote": "左鍵點一下 `abc123` 的小圓點：WT 視窗移到最前面，選中的分頁變成第 2 個；桌寵位置不變，不出現跳轉提示"
+              },
+              "risk": "medium",
+              "riskReason": "AI 用系統滑鼠輸入實測時 WT 本來就在前景，沒驗到「從別的程式前面搶回 WT」",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_JUMP_01_click_dot_jumps_to_that_session、test_AC_JUMP_02_click_row_text_jumps_when_labels_shown"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台、系統層級滑鼠點擊：點圓點 → 結果 ok、切到目標分頁，桌寵不動、設定檔沒寫入；開專案名稱後點文字端也跳轉成功"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "和 03 卡必測項同一個前景問題，那項過了這項通常也過；錯了一眼就看得到",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/05-click-dot-to-jump/drag-threshold-feel",
+              "text": "隨手**輕點**圓點幾次（手會微微晃的那種），再**按住拖**桌寵到別處。\n\n預期：\n- 輕點不會被當成拖曳（桌寵不跑位）\n- 拖曳起步不會覺得卡卡、跳一下\n\n> 注意：規格寫門檻「Windows 預設約 4 px」，但照卡上指定用的 Qt 門檻在你這台是 **10 px**（125% 縮放約 12.5 實體像素）。覺得拖曳起步太鈍，跟我說，再討論要不要改。",
+              "spec": {
+                "ref": "delta.md 名詞定義「點一下」",
+                "quote": "滑鼠移動距離未超過系統的拖曳門檻（Windows 預設約 4 px）。超過門檻才算拖曳。"
+              },
+              "risk": "low",
+              "riskReason": "門檻數字和規格描述不同，只能靠手感判斷",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_OPS_04_move_within_drag_threshold_is_a_click、test_AC_OPS_04_move_just_over_threshold_is_a_drag"
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "手感只有你能判斷",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/05-click-dot-to-jump/AC-JUMP-07-12-OPS-04-08",
+              "text": "拖 30 px 會移動並記住位置、不跳轉；點圓點之間的空隙沒反應；沒有 session 時點灰點沒反應；非 Windows 點了沒反應；動物版點一下不移動、不記位置。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-07、08、12、修改後的 AC-OPS-04",
+                "quote": ""
+              },
+              "risk": "low",
+              "riskReason": "有測試並做過反向確認，主要情境也用真實滑鼠輸入跑過",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_JUMP_07_drag_30px_from_dot_moves_and_saves_without_jump、test_AC_OPS_04_click_outside_dots_does_nothing、test_AC_JUMP_12_grey_dot_without_session_does_nothing、test_AC_JUMP_08_click_on_non_windows_does_nothing、test_animal_theme_click_does_not_move_or_save"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台系統滑鼠：拖 30 px → 桌寵右移 30 px、pos 記新位置、未跳轉；點空隙、點灰點都沒反應"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }
