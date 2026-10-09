@@ -42,7 +42,7 @@
 
 ## 開發慣例
 
-- 分支策略採簡化版：`main` + `feature/*`，重要變更才開 PR（要升級完整 Git Flow 時參考 dev-ci-setup skill）
+- 分支策略採簡化版：`main` + `feature/*`。main 已受保護（GitHub ruleset `protect-main`）：不能直接 push，一律開 `feature/*` 分支 → PR → CI（lint、test）綠燈後由使用者在網頁按 Merge（要升級完整 Git Flow 時參考 dev-ci-setup skill）
 - `docs/specs/SPEC.md` 是系統行為的唯一真相總帳：開發任何功能前先讀；只寫行為不寫實作；只有 `/dev-verify-spec` 驗收通過的內容能合併進去（唯一例外：`/dev-spec` 輕量通道、經使用者確認的小改動，在版本紀錄補一行）
 - 規格用編號對帳：`US-代號-NN`、`AC-代號-NN`；任務卡、測試名稱、驗收 Hub 都引用同一組編號
 - 可遷移到其他專案的開發經驗 → 記入 `dev_exp.md`
