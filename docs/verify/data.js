@@ -297,6 +297,108 @@ window.VERIFY_DATA = {
               "crossEnv": false
             }
           ]
+        },
+        {
+          "id": "04-jump-failure-hints",
+          "title": "04 跳不過去時的提示與保護",
+          "items": [
+            {
+              "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-14-15-17-18",
+              "text": "用 `python set_state.py waiting` 寫一個假 session（它沒有紀錄檔），把 WT 放到別的程式後面。對桌寵右鍵 → 那個假 session →「切換到終端機」。\n\n預期：\n- WT 被叫到最前面，但選中的分頁**不變**\n- 桌寵旁邊出現「找不到這個 session 的分頁」，約 3 秒後自己消失\n- 提示出現期間拖曳桌寵、按右鍵都正常，提示框長得順眼、位置合理\n\n測完用 `python set_state.py clear` 清掉假 session。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-14、15、17、18",
+                "quote": "WT 視窗移到最前面但選中的分頁不變；跳轉提示顯示「找不到這個 session 的分頁」"
+              },
+              "risk": "medium",
+              "riskReason": "「只叫出視窗不選分頁」完全依賴 Windows 讓桌寵搶前景，AI 從背景觸發時被拒；提示框外觀 AI 看不到",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py::test_AC_JUMP_14_no_title_brings_wt_front_without_selecting、test_AC_JUMP_15_no_match_brings_most_recent_wt_front、test_AC_JUMP_17_*；tests/test_pet.py::test_AC_JUMP_18_hint_disappears_by_itself_and_does_not_block_pet"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台啟動桌寵：假 session、紀錄檔已刪、無同名分頁、`.env` 類比都出現「找不到這個 session 的分頁」且分頁不變；WT 最小化時會被還原成前景；提示約 3 秒消失、不搶前景"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "錯了一眼就看得到、不傷資料",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-13",
+              "text": "在 WT 開兩個分頁，都 `/rename` 成同一個名字（例如 `寫週報`）。對桌寵右鍵 → 其中一個 session →「切換到終端機」。\n\n預期：\n- WT 到最前面但選中的分頁不變\n- 提示「有 2 個分頁同名，請手動切換」",
+              "spec": {
+                "ref": "delta.md AC-JUMP-13",
+                "quote": "跳轉提示顯示「有 2 個分頁同名，請手動切換」"
+              },
+              "risk": "low",
+              "riskReason": "邏輯有測試；只差實機撞名情境",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py::test_AC_JUMP_13_duplicate_tabs_bring_window_front_without_selecting；tests/test_pet.py::test_AC_JUMP_13_to_19_hint_text"
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "要開兩個同名分頁；錯了很容易發現",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-15-16-multi-window",
+              "text": "（有空再做）① 開兩個 WT 視窗，用假 session 觸發「切換到終端機」：叫出來的應該是**最近用過**的那個視窗。② 把所有 WT 都關掉再觸發：不切換任何視窗，只出現「找不到這個 session 的分頁」。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-15、16",
+                "quote": "最近使用過的那個 WT 視窗移到最前面……沒有任何 WT 視窗開著：不切換任何視窗"
+              },
+              "risk": "low",
+              "riskReason": "「Z-order 最上層＝最近使用」是推論，本機只有 1 個視窗",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py::test_AC_JUMP_15_no_match_brings_most_recent_wt_front、test_AC_JUMP_16_no_wt_window_switches_nothing"
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "需要多視窗／關掉全部 WT；錯了只是叫錯視窗",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-19-20-timeout-busy",
+              "text": "切換失敗、逾時 3 秒、處理中再觸發：失敗時提示「切換失敗，請手動切換」且不會切到別的分頁；逾時後不再做任何切換動作、不出第二個提示；處理中再觸發被忽略；桌寵關閉時取消背景處理。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-19、20、名詞定義「逾時後的保證範圍」",
+                "quote": ""
+              },
+              "risk": "medium",
+              "riskReason": "牽涉執行緒與時序，但已用測試與實機逾時模擬驗過",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py::test_AC_JUMP_19_*（取消旗標在每個切換動作前檢查）；tests/test_pet.py::test_AC_JUMP_19_timeout_reports_failed_once_and_cancels_worker、test_AC_JUMP_19_late_result_of_old_jump_does_not_leak_into_new_jump、test_AC_JUMP_20_second_jump_while_busy_is_ignored、test_closing_pet_sets_cancel_flag"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台：跳轉前先卡 3.3 秒 → 第 3.03 秒出現「切換失敗，請手動切換」，晚到結果被丟棄、無第二個提示、分頁沒被切走；處理中第二次觸發被忽略"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }

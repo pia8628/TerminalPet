@@ -4,7 +4,11 @@
 1. 從 session 的對話紀錄檔（JSONL）最後 1 MB 取出 session 標題
    ——只解析標題那幾行，不讀對話內容，也不寫入紀錄檔
 2. 用 Windows UI Automation 列出所有 Windows Terminal 視窗的分頁，找出同名分頁
-3. 只有一個同名分頁時：視窗最小化就先還原 → 選中分頁 → 把視窗帶到最前面
+3. 只有一個同名分頁時：視窗最小化就先還原 → 選中分頁 → 把視窗帶到最前面；
+   沒有標題／沒有同名分頁／撞名時，只把（最近使用的）WT 視窗帶到最前面，不改分頁選取
+
+呼叫端可傳入 cancelled()（逾時或桌寵關閉時回傳 True）：每一個切換動作
+（還原、選分頁、帶到最前面）開始前都會檢查，取消後不再開始新的動作。
 
 標題擷取與分頁比對是不依賴 Windows 的純函式（方便測試）。
 UI Automation 只用 ctypes 直接呼叫系統內建的 COM 元件，不需要額外套件；
@@ -31,7 +35,7 @@ NO_TITLE = "no_title"        # 沒有標題：沒有紀錄檔路徑、檔案不�
 NO_WINDOW = "no_window"      # 沒有任何 WT 視窗
 NO_MATCH = "no_match"        # 有標題，但沒有同名分頁
 AMBIGUOUS = "ambiguous"      # 同名分頁不只一個（matches 是數量）
-FAILED = "failed"            # 有唯一同名分頁，但切換過程失敗（選取失敗、前景被拒等）
+FAILED = "failed"            # 有唯一同名分頁，但切換過程失敗（選取失敗、前景被拒、被取消等）
 UNSUPPORTED = "unsupported"  # 非 Windows
 
 
@@ -117,30 +121,39 @@ def find_matches(tabs: list[str], title: str) -> list[int]:
 # 跳轉主流程（在背景執行緒呼叫）
 # ======================================================================
 
-def jump_to_session(transcript: str) -> JumpResult:
-    """切到 session 所在的 WT 分頁；任何錯誤都轉成結果代碼，不往外丟例外。"""
+def jump_to_session(transcript: str, cancelled=None) -> JumpResult:
+    """切到 session 所在的 WT 分頁；任何錯誤都轉成結果代碼，不往外丟例外。
+
+    cancelled：無參數函式，回傳 True 表示已逾時或桌寵關閉，不要再開始新的切換動作。
+    """
     if not supported():
         return JumpResult(UNSUPPORTED)
+    cancelled = cancelled or (lambda: False)
     title = read_session_title(transcript)
-    if not title:
-        return JumpResult(NO_TITLE)
     try:
-        return _jump_windows(title)
+        return _jump_windows(title, cancelled)
     except Exception:  # 背景執行緒不能因為系統呼叫失敗而中止
-        return JumpResult(FAILED)
+        # 沒有標題時本來就跳不過去，提示維持「找不到」；有標題才算切換失敗
+        return JumpResult(FAILED if title else NO_TITLE)
 
 
-def _jump_windows(title: str) -> JumpResult:
+def _jump_windows(title: str, cancelled) -> JumpResult:
     api = _win()
+    # 查找：列出所有 WT 視窗（依 Z-order，最上層在前＝最近使用過的）
+    hwnds = api.wt_windows()
+    if not title:
+        # 沒有標題（含假 session、紀錄檔不見）：只把最近使用的 WT 叫到前面
+        if hwnds:
+            _bring_to_front(api, hwnds[0], cancelled)
+        return JumpResult(NO_TITLE)
+    if not hwnds:
+        return JumpResult(NO_WINDOW)
     initialized = api.ole32.CoInitializeEx(None, COINIT_MULTITHREADED) in (0, 1)  # S_OK／S_FALSE
     try:
         uia = _Uia(api)
         elements = []
         try:
-            # 查找：列出所有 WT 視窗（依 Z-order，最上層在前）的所有分頁
-            hwnds = api.wt_windows()
-            if not hwnds:
-                return JumpResult(NO_WINDOW)
+            # 查找：列出每個 WT 視窗的所有分頁
             names, owners = [], []
             for hwnd in hwnds:
                 try:
@@ -153,12 +166,15 @@ def _jump_windows(title: str) -> JumpResult:
                     owners.append(hwnd)
             found = find_matches(names, title)
             if not found:
+                _bring_to_front(api, hwnds[0], cancelled)
                 return JumpResult(NO_MATCH)
             if len(found) > 1:
+                # 撞名：把含同名分頁、最近使用的那個視窗叫到前面，分頁選取不動
+                _bring_to_front(api, owners[found[0]], cancelled)
                 return JumpResult(AMBIGUOUS, len(found))
             index = found[0]
             # 切換：還原 → 選分頁 → 帶到最前面
-            return _switch(api, uia, owners[index], elements[index])
+            return _switch(api, uia, owners[index], elements[index], cancelled)
         finally:
             for element in elements:
                 _release(element)
@@ -168,13 +184,34 @@ def _jump_windows(title: str) -> JumpResult:
             api.ole32.CoUninitialize()
 
 
-def _switch(api, uia, hwnd: int, element) -> JumpResult:
+def _restore(api, hwnd: int) -> None:
     if api.user32.IsIconic(hwnd):
         # 只對最小化的視窗還原；對最大化的視窗呼叫會把它縮成一般大小
         api.user32.ShowWindow(hwnd, SW_RESTORE)
+
+
+def _bring_to_front(api, hwnd: int, cancelled) -> None:
+    """跳不過去時盡量把 WT 視窗叫到最前面；不選分頁、不判定成敗（提示照樣顯示）。"""
+    if cancelled():
+        return
+    _restore(api, hwnd)
+    if cancelled():
+        return
+    api.user32.SetForegroundWindow(hwnd)
+
+
+def _switch(api, uia, hwnd: int, element, cancelled) -> JumpResult:
+    # 每個動作開始前都檢查是否已取消（逾時或桌寵關閉）；已在執行中的動作無法中斷
+    if cancelled():
+        return JumpResult(FAILED, 1)
+    _restore(api, hwnd)
+    if cancelled():
+        return JumpResult(FAILED, 1)
     try:
         uia.select(element)  # WT 選中分頁時通常會順帶把視窗帶到前景
     except OSError:
+        return JumpResult(FAILED, 1)  # 例如分頁在切換前被關閉
+    if cancelled():
         return JumpResult(FAILED, 1)
     api.user32.SetForegroundWindow(hwnd)
     deadline = time.monotonic() + FOREGROUND_WAIT_SEC

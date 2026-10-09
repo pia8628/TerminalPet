@@ -269,7 +269,7 @@ def test_jump_runs_in_background_and_result_returns_on_main_thread(qapp):
     main = threading.get_ident()
     job_threads, received, ticks = [], [], []
 
-    def slow_job(transcript):
+    def slow_job(transcript, cancelled):
         job_threads.append(threading.get_ident())
         time.sleep(0.3)  # 模擬讀檔＋UI Automation 花的時間
         return pet.wt_jump.JumpResult(pet.wt_jump.OK, 1)
@@ -295,7 +295,7 @@ def test_jump_runs_in_background_and_result_returns_on_main_thread(qapp):
 def test_jump_errors_are_reported_not_raised(qapp):
     received = []
 
-    def broken_job(transcript):
+    def broken_job(transcript, cancelled):
         raise RuntimeError("壞掉")
 
     runner = pet.JumpRunner(job=broken_job)
@@ -304,3 +304,184 @@ def test_jump_errors_are_reported_not_raised(qapp):
     wait_for(qapp, lambda: received)
 
     assert [r.code for r in received] == [pet.wt_jump.FAILED]
+
+
+# ---- 跳不過去時的提示與保護（04 卡） ----
+
+R = pet.wt_jump.JumpResult
+
+
+@pytest.mark.parametrize("result, expected", [
+    (R(pet.wt_jump.AMBIGUOUS, 2), "有 2 個分頁同名，請手動切換"),
+    (R(pet.wt_jump.AMBIGUOUS, 3), "有 3 個分頁同名，請手動切換"),
+    (R(pet.wt_jump.NO_TITLE), "找不到這個 session 的分頁"),
+    (R(pet.wt_jump.NO_WINDOW), "找不到這個 session 的分頁"),
+    (R(pet.wt_jump.NO_MATCH), "找不到這個 session 的分頁"),
+    (R(pet.wt_jump.FAILED, 1), "切換失敗，請手動切換"),
+    (R(pet.wt_jump.FAILED), "切換失敗，請手動切換"),
+    (R(pet.wt_jump.OK, 1), None),
+    (R(pet.wt_jump.UNSUPPORTED), None),  # AC-JUMP-08：非 Windows 不出提示
+])
+def test_AC_JUMP_13_to_19_hint_text(result, expected):
+    assert pet.jump_hint_text(result) == expected
+
+
+def gated_job(results, gate):
+    """假的跳轉：等 gate 打開才回傳 results 裡的下一個結果，並記下被呼叫的紀錄檔。"""
+    calls = []
+
+    def job(transcript, cancelled):
+        calls.append(transcript)
+        gate.wait(5)
+        return results.pop(0)
+
+    return job, calls
+
+
+def test_AC_JUMP_20_second_jump_while_busy_is_ignored(pet_window, qapp):
+    w = pet_window(("s1", "", "C:/t/s1.jsonl"), ("s2", "", "C:/t/s2.jsonl"))
+    gate = threading.Event()
+    job, calls = gated_job([R(pet.wt_jump.OK, 1)], gate)
+    w._jumper._job = job
+    received = []
+    w._jumper.finished.connect(received.append)
+
+    w._jump_to("C:/t/s1.jsonl")
+    w._jump_to("C:/t/s2.jsonl")  # 第一個還在處理中
+    gate.set()
+    wait_for(qapp, lambda: received)
+    wait_for(qapp, lambda: False, timeout=0.1)
+
+    assert calls == ["C:/t/s1.jsonl"]  # 第二次沒有開始
+    assert received == [R(pet.wt_jump.OK, 1)]  # 第一個照常完成
+    assert not w._hint.isVisible()  # 被忽略的那次不出提示，成功也不出提示
+
+    # 處理完之後可以再跳
+    gate.clear()
+    job2, calls2 = gated_job([R(pet.wt_jump.OK, 1)], gate)
+    w._jumper._job = job2
+    gate.set()
+    w._jump_to("C:/t/s2.jsonl")
+    wait_for(qapp, lambda: len(received) == 2)
+    assert calls2 == ["C:/t/s2.jsonl"]
+
+
+def test_AC_JUMP_19_timeout_reports_failed_once_and_cancels_worker(qapp):
+    gate = threading.Event()
+    seen_cancel = []
+
+    def stuck_job(transcript, cancelled):
+        gate.wait(5)  # 模擬卡住的系統呼叫
+        seen_cancel.append(cancelled())
+        return R(pet.wt_jump.OK, 1)  # 逾時之後才晚到的結果
+
+    runner = pet.JumpRunner(job=stuck_job, timeout_ms=100)
+    received = []
+    runner.finished.connect(received.append)
+    runner.start("C:/t/s1.jsonl")
+    wait_for(qapp, lambda: received)
+
+    assert received == [R(pet.wt_jump.FAILED)]  # 逾時 → 切換失敗
+    assert not runner.busy
+
+    gate.set()
+    wait_for(qapp, lambda: seen_cancel)
+    wait_for(qapp, lambda: False, timeout=0.2)  # 讓晚到的結果有機會送回主執行緒
+
+    assert seen_cancel == [True]  # worker 看得到取消旗標，不會再開始新的切換動作
+    assert received == [R(pet.wt_jump.FAILED)]  # 晚到的結果被丟掉，沒有第二個提示
+
+
+def test_AC_JUMP_19_late_result_of_old_jump_does_not_leak_into_new_jump(qapp):
+    old_gate, new_gate = threading.Event(), threading.Event()
+    gates = [old_gate, new_gate]
+    results = [R(pet.wt_jump.OK, 1), R(pet.wt_jump.NO_MATCH)]
+
+    def job(transcript, cancelled):
+        gates.pop(0).wait(5)
+        return results.pop(0)
+
+    runner = pet.JumpRunner(job=job, timeout_ms=100)
+    received = []
+    runner.finished.connect(received.append)
+    runner.start("old")
+    wait_for(qapp, lambda: received)  # 第一個逾時
+    runner._timeout_ms = 3000
+    runner.start("new")
+    old_gate.set()  # 第一個的結果在第二個處理中晚到
+    wait_for(qapp, lambda: False, timeout=0.2)
+
+    assert received == [R(pet.wt_jump.FAILED)]  # 世代編號不符：沒有被當成第二個跳轉的結果
+    assert runner.busy
+
+    new_gate.set()
+    wait_for(qapp, lambda: len(received) == 2)
+    assert received == [R(pet.wt_jump.FAILED), R(pet.wt_jump.NO_MATCH)]
+
+
+def test_closing_pet_sets_cancel_flag(pet_window, qapp):
+    w = pet_window(("s1", "", "C:/t/s1.jsonl"))
+    gate = threading.Event()
+    seen_cancel = []
+
+    def job(transcript, cancelled):
+        gate.wait(5)
+        seen_cancel.append(cancelled())
+        return R(pet.wt_jump.OK, 1)
+
+    w._jumper._job = job
+    received = []
+    w._jumper.finished.connect(received.append)
+    w._jump_to("C:/t/s1.jsonl")
+    qapp.aboutToQuit.emit()  # 等同按「關閉桌寵」時 Qt 發出的通知
+    gate.set()
+    wait_for(qapp, lambda: seen_cancel)
+    wait_for(qapp, lambda: False, timeout=0.1)
+
+    assert seen_cancel == [True]
+    assert received == []  # 關閉時不再回報、不出提示
+
+
+@pytest.mark.parametrize("result, text", [
+    (R(pet.wt_jump.NO_MATCH), "找不到這個 session 的分頁"),
+    (R(pet.wt_jump.AMBIGUOUS, 2), "有 2 個分頁同名，請手動切換"),
+    (R(pet.wt_jump.FAILED, 1), "切換失敗，請手動切換"),
+])
+def test_AC_JUMP_13_to_19_hint_is_shown_after_failed_jump(pet_window, qapp, result, text):
+    w = pet_window(("s1", "", "C:/t/s1.jsonl"))
+    w.show()
+    w._jumper._job = lambda transcript, cancelled: result
+    w._jump_to("C:/t/s1.jsonl")
+    wait_for(qapp, lambda: w._hint.isVisible())
+
+    assert w._hint.isVisible()
+    assert w._hint.text() == text
+    w.hide()
+
+
+def test_AC_JUMP_08_no_hint_on_success_or_unsupported(pet_window, qapp):
+    w = pet_window(("s1", "", "C:/t/s1.jsonl"))
+    w.show()
+    for result in (R(pet.wt_jump.OK, 1), R(pet.wt_jump.UNSUPPORTED)):
+        w._on_jump_finished(result)
+        assert not w._hint.isVisible()
+    w.hide()
+
+
+def test_AC_JUMP_18_hint_disappears_by_itself_and_does_not_block_pet(pet_window, qapp, monkeypatch):
+    from PySide6.QtCore import Qt
+    monkeypatch.setattr(pet, "HINT_MS", 150)
+    w = pet_window(("s1", "", "C:/t/s1.jsonl"))
+    w.show()
+    w._on_jump_finished(R(pet.wt_jump.NO_MATCH))
+
+    assert w._hint.isVisible()
+    # 不接收滑鼠、不搶焦點：桌寵的拖曳、右鍵、點擊照常，剛叫到前面的 WT 不會被搶走前景
+    assert w._hint.testAttribute(Qt.WA_TransparentForMouseEvents)
+    assert w._hint.testAttribute(Qt.WA_ShowWithoutActivating)
+    assert w._hint.windowFlags() & Qt.WindowDoesNotAcceptFocus
+    assert not w._hint.isModal()
+
+    wait_for(qapp, lambda: not w._hint.isVisible(), timeout=2)
+    assert not w._hint.isVisible()
+    w.hide()

@@ -1,6 +1,7 @@
 """wt_jump.py 標題擷取與分頁比對的測試（條文見 docs/specs/changes/click-to-terminal/delta.md JUMP 模組）。
 
-只測不依賴 Windows 的純函式；紀錄檔一律是暫存資料夾裡的假資料，不讀真正的 ~/.claude/。
+標題擷取與分頁比對是純函式；叫出 WT／切換動作的順序與取消檢查用假的 Windows API 測。
+紀錄檔一律是暫存資料夾裡的假資料，不讀真正的 ~/.claude/。
 實際切換 WT 分頁（UI Automation）無法在 CI 自動測，列入人工驗收。
 """
 
@@ -186,22 +187,13 @@ def test_AC_JUMP_08_non_windows_is_unsupported(monkeypatch):
     assert wt_jump.jump_to_session("whatever.jsonl").code == wt_jump.UNSUPPORTED
 
 
-def test_AC_JUMP_17_no_title_does_not_touch_windows(monkeypatch, tmp_path):
-    monkeypatch.setattr(wt_jump.sys, "platform", "win32")
-    calls = []
-    monkeypatch.setattr(wt_jump, "_jump_windows", lambda title: calls.append(title))
-    assert wt_jump.jump_to_session("").code == wt_jump.NO_TITLE
-    assert wt_jump.jump_to_session(str(tmp_path / "gone.jsonl")).code == wt_jump.NO_TITLE
-    assert calls == []
-
-
 def test_title_is_passed_to_window_search(monkeypatch, tmp_path):
     monkeypatch.setattr(wt_jump.sys, "platform", "win32")
     path = tmp_path / "abc123.jsonl"
     path.write_bytes(jsonl(ai("任務進度條 Phase 4")))
     calls = []
     monkeypatch.setattr(wt_jump, "_jump_windows",
-                        lambda title: calls.append(title) or wt_jump.JumpResult(wt_jump.OK, 1))
+                        lambda title, cancelled: calls.append(title) or wt_jump.JumpResult(wt_jump.OK, 1))
     assert wt_jump.jump_to_session(str(path)) == wt_jump.JumpResult(wt_jump.OK, 1)
     assert calls == ["任務進度條 Phase 4"]
 
@@ -211,8 +203,218 @@ def test_system_errors_become_failed_result(monkeypatch, tmp_path):
     path = tmp_path / "abc123.jsonl"
     path.write_bytes(jsonl(ai("任務進度條 Phase 4")))
 
-    def boom(_title):
+    def boom(_title, _cancelled):
         raise OSError("UI Automation 失敗")
 
     monkeypatch.setattr(wt_jump, "_jump_windows", boom)
     assert wt_jump.jump_to_session(str(path)).code == wt_jump.FAILED
+
+
+def test_AC_JUMP_17_system_errors_without_title_stay_not_found(monkeypatch):
+    monkeypatch.setattr(wt_jump.sys, "platform", "win32")
+
+    def boom(_title, _cancelled):
+        raise OSError("列視窗失敗")
+
+    monkeypatch.setattr(wt_jump, "_jump_windows", boom)
+    assert wt_jump.jump_to_session("").code == wt_jump.NO_TITLE
+
+
+# ======================================================================
+# 叫出 WT／切換動作（假的 Windows API，記錄每個動作的順序，不碰真的視窗）
+# ======================================================================
+
+class FakeUser32:
+    def __init__(self, log, iconic=(), refuse_foreground=False):
+        self.log = log
+        self.iconic = set(iconic)
+        self.refuse = refuse_foreground
+        self.foreground = 999  # 原本的前景視窗（不是 WT）
+
+    def IsIconic(self, hwnd):
+        return hwnd in self.iconic
+
+    def ShowWindow(self, hwnd, _cmd):
+        self.log.append(("restore", hwnd))
+        self.iconic.discard(hwnd)
+        return True
+
+    def SetForegroundWindow(self, hwnd):
+        self.log.append(("foreground", hwnd))
+        if not self.refuse:
+            self.foreground = hwnd
+        return not self.refuse
+
+    def GetForegroundWindow(self):
+        return self.foreground
+
+
+class FakeOle32:
+    def CoInitializeEx(self, _reserved, _flags):
+        return 0
+
+    def CoUninitialize(self):
+        pass
+
+
+class FakeApi:
+    def __init__(self, windows, **user32_options):
+        """windows：{hwnd: [分頁標題, ...]}，依 Z-order（最上層在前）排列。"""
+        self.windows = windows
+        self.log = []
+        self.user32 = FakeUser32(self.log, **user32_options)
+        self.ole32 = FakeOle32()
+
+    def wt_windows(self):
+        return list(self.windows)
+
+
+def install_fake(monkeypatch, api, select_error=False, on_select=None):
+    class FakeUia:
+        def __init__(self, _api):
+            pass
+
+        def tabs_of(self, hwnd):
+            return [(name, (hwnd, i)) for i, name in enumerate(api.windows[hwnd])]
+
+        def select(self, element):
+            if on_select:
+                on_select()
+            if select_error:
+                raise OSError("分頁已被關閉")
+            api.log.append(("select", element))
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(wt_jump.sys, "platform", "win32")
+    monkeypatch.setattr(wt_jump, "_win", lambda: api)
+    monkeypatch.setattr(wt_jump, "_Uia", FakeUia)
+    monkeypatch.setattr(wt_jump, "_release", lambda _ptr: None)
+    monkeypatch.setattr(wt_jump, "FOREGROUND_WAIT_SEC", 0.05)
+
+
+def transcript_with(tmp_path, title) -> str:
+    path = tmp_path / "abc123.jsonl"
+    path.write_bytes(jsonl(ai(title)) if title else jsonl(chat("hi")))
+    return str(path)
+
+
+def selections(api):
+    return [entry for entry in api.log if entry[0] == "select"]
+
+
+def test_AC_JUMP_03_unique_tab_is_selected_and_brought_front(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報", "✳ 任務進度條 Phase 4", "PowerShell"]})
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "任務進度條 Phase 4"))
+
+    assert result == wt_jump.JumpResult(wt_jump.OK, 1)
+    assert api.log == [("select", (10, 1)), ("foreground", 10)]
+
+
+def test_AC_JUMP_13_duplicate_tabs_bring_window_front_without_selecting(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報", "✳ 寫週報", "PowerShell"]})
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報"))
+
+    assert result == wt_jump.JumpResult(wt_jump.AMBIGUOUS, 2)
+    assert api.log == [("foreground", 10)]  # 視窗叫到前面，分頁選取不動
+
+
+def test_AC_JUMP_14_no_title_brings_wt_front_without_selecting(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報", "Claude Code"]})
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, ""))
+
+    assert result.code == wt_jump.NO_TITLE
+    assert api.log == [("foreground", 10)]
+
+
+def test_AC_JUMP_15_no_match_brings_most_recent_wt_front(monkeypatch, tmp_path):
+    api = FakeApi({20: ["✳ 寫週報"], 10: ["PowerShell"]}, iconic={20})  # 20 在 Z-order 最上層、已最小化
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "不存在的標題"))
+
+    assert result.code == wt_jump.NO_MATCH
+    assert api.log == [("restore", 20), ("foreground", 20)]
+
+
+def test_AC_JUMP_16_no_wt_window_switches_nothing(monkeypatch, tmp_path):
+    api = FakeApi({})
+    install_fake(monkeypatch, api)
+
+    assert wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報")).code == wt_jump.NO_WINDOW
+    assert wt_jump.jump_to_session("").code == wt_jump.NO_TITLE
+    assert api.log == []
+
+
+def test_AC_JUMP_17_fake_or_missing_transcript_is_treated_as_no_title(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報"]})
+    install_fake(monkeypatch, api)
+
+    for transcript in ("", str(tmp_path / "gone.jsonl")):  # set_state.py 的假 session／紀錄檔已刪除
+        api.log.clear()
+        assert wt_jump.jump_to_session(transcript).code == wt_jump.NO_TITLE
+        assert api.log == [("foreground", 10)]
+
+
+def test_AC_JUMP_21_dot_env_does_not_switch_to_env_tab(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ env", "PowerShell"]})
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, ".env"))
+
+    assert result.code == wt_jump.NO_MATCH
+    assert selections(api) == []
+
+
+def test_AC_JUMP_19_tab_closed_before_select_fails_without_other_tab(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報", "PowerShell"]})
+    install_fake(monkeypatch, api, select_error=True)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報"))
+
+    assert result.code == wt_jump.FAILED
+    assert api.log == []  # 不會改去切其他分頁，也不會再帶視窗到前面
+
+
+def test_AC_JUMP_19_foreground_refused_is_failed(monkeypatch, tmp_path):
+    api = FakeApi({10: ["✳ 寫週報"]}, refuse_foreground=True)
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報"))
+
+    assert result.code == wt_jump.FAILED
+
+
+@pytest.mark.parametrize("cancel_after, expected_log", [
+    (0, []),                                     # 查找完就取消：不還原、不選分頁、不帶前景
+    (1, [("restore", 10)]),                      # 還原後取消：不再選分頁
+    (2, [("restore", 10), ("select", (10, 0))]),  # 選分頁後取消：不再帶前景
+])
+def test_AC_JUMP_19_cancel_is_checked_before_every_switch_action(monkeypatch, tmp_path, cancel_after, expected_log):
+    api = FakeApi({10: ["✳ 寫週報"]}, iconic={10})
+    install_fake(monkeypatch, api)
+
+    def cancelled():
+        return len(api.log) >= cancel_after
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報"), cancelled)
+
+    assert result.code == wt_jump.FAILED
+    assert api.log == expected_log
+
+
+def test_cancel_also_stops_bringing_wt_front(monkeypatch, tmp_path):
+    api = FakeApi({10: ["PowerShell"]}, iconic={10})
+    install_fake(monkeypatch, api)
+
+    result = wt_jump.jump_to_session(transcript_with(tmp_path, "寫週報"), lambda: True)
+
+    assert result.code == wt_jump.NO_MATCH
+    assert api.log == []

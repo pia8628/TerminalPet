@@ -31,7 +31,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
 
 import wt_jump
 
@@ -49,6 +49,10 @@ else:
 # 輪詢間隔（毫秒）。Windows 的 QFileSystemWatcher 對「檔案覆寫」偵測不可靠，
 # 實務上是靠這個輪詢兜底，所以間隔就是使用者感受到的最壞延遲，設短一點。
 POLL_MS = 250
+
+# 切換到終端機：處理超過這個時間仍未完成就視為切換失敗；跳轉提示顯示這麼久後自動消失
+JUMP_TIMEOUT_MS = 3000
+HINT_MS = 3000
 
 # 逾時規則依狀態而定：
 # - waiting（等你批准／回答）不會自己消失，你沒處理就一直亮著
@@ -301,24 +305,128 @@ class JumpRunner(QObject):
     """在背景執行緒跑「切換到終端機」（讀標題＋UI Automation），結果用 Qt signal 送回主執行緒。
 
     背景處理期間主執行緒照常跑事件迴圈，桌寵的燈號、閃燈、拖曳、右鍵都不受影響。
+    同一時間只處理一個跳轉；每次跳轉帶一個世代編號與取消旗標：
+    - 主執行緒計時，超過 JUMP_TIMEOUT_MS 就設取消旗標並回報 failed
+    - 背景執行緒在每個切換動作開始前檢查旗標與世代編號，不符就放棄
+    - 背景結果晚到（世代編號已不是進行中的那個）就丟掉，不會再回報第二次
     """
 
-    finished = Signal(object)  # wt_jump.JumpResult，在主執行緒收到
+    finished = Signal(object)  # wt_jump.JumpResult，在主執行緒收到；每次跳轉只回報一次
+    _done = Signal(int, object)  # 背景執行緒 → 主執行緒：（世代編號, 結果）
 
-    def __init__(self, parent=None, job=None):
+    def __init__(self, parent=None, job=None, timeout_ms: int | None = None):
         super().__init__(parent)
         self._job = job  # 測試可換成假的跳轉函式；None 表示用 wt_jump.jump_to_session
+        self._timeout_ms = JUMP_TIMEOUT_MS if timeout_ms is None else timeout_ms
+        self._generation = 0
+        self._active: int | None = None  # 進行中的世代編號；None 表示閒置
+        self._cancel: threading.Event | None = None
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._on_timeout)
+        self._done.connect(self._on_done)
 
-    def start(self, transcript: str) -> None:
-        threading.Thread(target=self._run, args=(transcript,), daemon=True, name="wt-jump").start()
+    @property
+    def busy(self) -> bool:
+        return self._active is not None
 
-    def _run(self, transcript: str) -> None:
+    def start(self, transcript: str) -> bool:
+        """開始跳轉；已有跳轉處理中時忽略並回傳 False。"""
+        if self.busy:
+            return False
+        self._generation += 1
+        generation = self._generation
+        cancel = threading.Event()
+        self._active, self._cancel = generation, cancel
+
+        def cancelled() -> bool:
+            return cancel.is_set() or self._active != generation
+
+        self._timer.start(self._timeout_ms)
+        threading.Thread(target=self._run, args=(generation, transcript, cancelled),
+                         daemon=True, name="wt-jump").start()
+        return True
+
+    def cancel(self) -> None:
+        """取消進行中的跳轉（桌寵關閉時呼叫）；不回報結果。"""
+        self._timer.stop()
+        if self._cancel:
+            self._cancel.set()
+        self._active, self._cancel = None, None
+
+    def _run(self, generation: int, transcript: str, cancelled) -> None:
         job = self._job or wt_jump.jump_to_session
         try:
-            result = job(transcript)
+            result = job(transcript, cancelled)
         except Exception:  # 背景執行緒的錯誤不能讓桌寵中止
             result = wt_jump.JumpResult(wt_jump.FAILED)
-        self.finished.emit(result)  # 跨執行緒發送，Qt 會排進主執行緒處理
+        self._done.emit(generation, result)  # 跨執行緒發送，Qt 會排進主執行緒處理
+
+    def _on_done(self, generation: int, result) -> None:
+        if generation != self._active:
+            return  # 已逾時或已取消：晚到的結果丟掉，不顯示第二個提示
+        self._timer.stop()
+        self._active, self._cancel = None, None
+        self.finished.emit(result)
+
+    def _on_timeout(self) -> None:
+        if not self.busy:
+            return
+        self.cancel()  # 不再開始新的切換動作
+        self.finished.emit(wt_jump.JumpResult(wt_jump.FAILED))
+
+
+def jump_hint_text(result) -> str | None:
+    """依跳轉結果決定跳轉提示的文字；成功或非 Windows 時不提示（回傳 None）。"""
+    if result.code == wt_jump.AMBIGUOUS:
+        return f"有 {result.matches} 個分頁同名，請手動切換"
+    if result.code in (wt_jump.NO_TITLE, wt_jump.NO_WINDOW, wt_jump.NO_MATCH):
+        return "找不到這個 session 的分頁"
+    if result.code == wt_jump.FAILED:
+        return "切換失敗，請手動切換"
+    return None
+
+
+class JumpHint(QLabel):
+    """跳轉提示：桌寵旁邊的小提示框，HINT_MS 後自動消失，不需要按任何按鈕。
+
+    不搶焦點（剛叫到前面的 WT 不會被搶走前景）、不接收滑鼠（不擋桌寵的拖曳、右鍵、點擊）。
+    """
+
+    GAP = 6  # 與桌寵的間距
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+                            | Qt.WindowDoesNotAcceptFocus)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        font = QFont()
+        font.setPointSize(9)
+        self.setFont(font)
+        self.setStyleSheet("QLabel { background: #2b2b2b; color: #f0f0f0;"
+                           " border: 1px solid #5a5a5a; padding: 6px 10px; }")
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.hide)
+
+    def show_near(self, text: str, anchor: QRect) -> None:
+        self.setText(text)
+        self.adjustSize()
+        self.place(anchor)
+        self.show()
+        self._timer.start(HINT_MS)  # 再次顯示時重新計時
+
+    def place(self, anchor: QRect) -> None:
+        """放在桌寵正上方（上方放不下就放下方），水平置中並夾在螢幕內。"""
+        screen = (QApplication.screenAt(anchor.center()) or QApplication.primaryScreen()).availableGeometry()
+        x = anchor.center().x() - self.width() // 2
+        y = anchor.top() - self.GAP - self.height()
+        if y < screen.top():
+            y = anchor.bottom() + self.GAP
+        x = max(screen.left(), min(x, screen.right() - self.width() + 1))
+        y = max(screen.top(), min(y, screen.bottom() - self.height() + 1))
+        self.move(x, y)
 
 
 class PetWindow(QWidget):
@@ -338,6 +446,10 @@ class PetWindow(QWidget):
         self._jumper = JumpRunner(self)
         self._jumper.finished.connect(self._on_jump_finished)
         self._last_jump: wt_jump.JumpResult | None = None
+        self._hint = JumpHint(self)
+        app = QApplication.instance()
+        if app:
+            app.aboutToQuit.connect(self._jumper.cancel)  # 桌寵關閉：不再開始新的切換動作
 
         # 無邊框 + 永遠置頂 + Tool（避免出現在工作列）
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -568,6 +680,11 @@ class PetWindow(QWidget):
             self.config["pos"] = [self.x(), self.y()]
             save_config(self.config)
 
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if self._hint.isVisible():
+            self._hint.place(self.frameGeometry())  # 提示顯示中拖曳桌寵，提示跟著走
+
     # ---- 右鍵選單（桌寵與系統匣共用） ----
     def contextMenuEvent(self, event):
         menu = QMenu(self)
@@ -633,11 +750,16 @@ class PetWindow(QWidget):
 
     # ---- 切換到終端機 ----
     def _jump_to(self, transcript: str):
+        """所有跳轉入口（右鍵選單、點圓點、點小狼）都走這裡。"""
+        if self._jumper.busy:
+            return  # 同一時間只處理一個跳轉：處理中再觸發直接忽略，不出現提示
         self._jumper.start(transcript)
 
     def _on_jump_finished(self, result):
-        # 目前只記下結果；跳不過去時的提示屬於後續功能
         self._last_jump = result
+        text = jump_hint_text(result)
+        if text:
+            self._hint.show_near(text, self.frameGeometry())
 
     def _clear_idle(self):
         for s in self.sessions:
