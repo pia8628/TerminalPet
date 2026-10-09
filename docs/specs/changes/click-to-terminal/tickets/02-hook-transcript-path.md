@@ -4,7 +4,7 @@
 
 **Blocked by**：無——可直接開工（可與 01 平行）
 
-**狀態**：已完成
+**狀態**：已驗收（2026-10-09）
 
 **檢查點**：否
 
@@ -43,6 +43,9 @@
 
 **AI 驗不了、必須人工看的**：
 - 真實 Claude Code session 觸發 hook 後，`~/.terminalpet/sessions/<sid>.json` 確實出現 `transcript` 且路徑指向真實存在的 .jsonl（依賴 Claude Code 實際送出的 `transcript_path` 欄位；需重裝／更新 plugin 或 install.py 安裝的 hook 才會用到新腳本）。不涉及金額／日期計算
+
+**人工驗收結果（2026-10-09）**：
+- 使用者 2026-10-09 於 Hub 匯出：3 項皆略過／未填（AI 已驗過）；真實 session 寫入 transcript 由 03 卡右鍵實切通過間接證明
 
 **可能因環境而異的行為**：
 - macOS 內建 bash 3.2：新解析只用 `[[ =~ ]]` 與 `${var//}`，與 cwd 相同手法，應無差異，但本機未在 macOS 實測

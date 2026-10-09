@@ -1,0 +1,145 @@
+{
+  "project": "TerminalPet",
+  "changeId": "click-to-terminal",
+  "changeName": "點擊跳到終端機",
+  "exportedAt": "2026-10-09T14:57:41.000Z",
+  "environments": [
+    {
+      "id": "win11-wt",
+      "label": "Windows 11 + Windows Terminal"
+    }
+  ],
+  "summary": {
+    "total": 22,
+    "pass": 10,
+    "fail": 0,
+    "skip": 10,
+    "untested": 2
+  },
+  "verdict": {
+    "click-to-terminal/01-feasibility-spike/rename-tab-title": {
+      "status": "pass",
+      "note": "使用者在對話中回報通過",
+      "envs": {},
+      "at": "2026-10-09T19:25:04+08:00"
+    },
+    "click-to-terminal/01-feasibility-spike/waiting-prefix": {
+      "status": "pass",
+      "note": "使用者在對話中回報通過",
+      "envs": {},
+      "at": "2026-10-09T19:25:04+08:00"
+    },
+    "click-to-terminal/01-feasibility-spike/uia-list-match-select": {
+      "status": "pass",
+      "note": "使用者在對話中回報通過",
+      "envs": {},
+      "at": "2026-10-09T19:25:04+08:00"
+    },
+    "click-to-terminal/01-feasibility-spike/status-prefix-sampling": {
+      "status": "pass",
+      "note": "使用者在對話中回報通過",
+      "envs": {},
+      "at": "2026-10-09T19:25:04+08:00"
+    },
+    "click-to-terminal/02-hook-transcript-path/AC-HOOK-16": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:54:14.124Z"
+    },
+    "click-to-terminal/02-hook-transcript-path/real-session": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:54:07.199Z"
+    },
+    "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-03": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:54:54.546Z"
+    },
+    "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-04": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:08.835Z"
+    },
+    "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-06": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:11.238Z"
+    },
+    "click-to-terminal/03-menu-switch-to-terminal/title-and-match-rules": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:12.888Z"
+    },
+    "click-to-terminal/03-menu-switch-to-terminal/background-and-non-windows": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:13.622Z"
+    },
+    "click-to-terminal/04-jump-failure-hints/AC-JUMP-14-15-17-18": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:22.946Z"
+    },
+    "click-to-terminal/04-jump-failure-hints/AC-JUMP-13": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:24.371Z"
+    },
+    "click-to-terminal/04-jump-failure-hints/AC-JUMP-15-16-multi-window": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:26.284Z"
+    },
+    "click-to-terminal/04-jump-failure-hints/AC-JUMP-19-20-timeout-busy": {
+      "status": "skip",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:55:27.632Z"
+    },
+    "click-to-terminal/05-click-dot-to-jump/AC-JUMP-01-02": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:57:36.941Z"
+    },
+    "click-to-terminal/05-click-dot-to-jump/drag-threshold-feel": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:56:16.257Z"
+    },
+    "click-to-terminal/05-click-dot-to-jump/AC-JUMP-07-12-OPS-04-08": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:56:19.894Z"
+    },
+    "click-to-terminal/06-click-wolf-to-jump/AC-JUMP-09-10-rule": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:56:56.824Z"
+    },
+    "click-to-terminal/06-click-wolf-to-jump/real-click-wolf": {
+      "status": "pass",
+      "note": "",
+      "envs": {},
+      "at": "2026-10-09T14:57:02.998Z"
+    }
+  },
+  "ticketNotes": {
+    "01-feasibility-spike": "使用者在對話中回報驗完 OK；依建議於 delta 加入 `◑`、terminalTitleFromRename=false 列入 Out of Scope"
+  },
+  "changeNote": ""
+}

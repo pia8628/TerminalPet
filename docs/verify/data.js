@@ -120,7 +120,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者未填（AI 已驗過・可略過）",
+                "at": "2026-10-09T22:57:41+08:00"
+              }
             },
             {
               "id": "click-to-terminal/02-hook-transcript-path/AC-HOOK-16",
@@ -144,7 +149,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:54:14.124Z"
+              }
             },
             {
               "id": "click-to-terminal/02-hook-transcript-path/real-session",
@@ -168,9 +178,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "要真的 session 觸發安裝後的 hook；錯了在 03 卡驗收時會直接看到跳不過去，容易發現",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:54:07.199Z"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T22:57:41+08:00",
+            "note": "使用者 2026-10-09 匯出結果：AI 驗過的項目略過／未填；真實 session 項略過（03 卡右鍵實切通過，間接證明 transcript 已寫入）"
+          }
         },
         {
           "id": "03-menu-switch-to-terminal",
@@ -198,7 +217,12 @@ window.VERIFY_DATA = {
               "manualOnly": true,
               "manualOnlyReason": "AI 沒辦法真的用滑鼠點桌寵，Windows 只在「剛被使用者點過」的程式允許搶前景；這裡不過，04～06 卡蓋在上面全部白做，而且要等真的用起來才會發現",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:54:54.546Z"
+              }
             },
             {
               "id": "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-04",
@@ -222,7 +246,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "要兩個 WT 視窗；錯了一眼就看得出來",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:08.835Z"
+              }
             },
             {
               "id": "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-06",
@@ -246,7 +275,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "要真的執行 `/rename`；錯了很容易看出來",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:11.238Z"
+              }
             },
             {
               "id": "click-to-terminal/03-menu-switch-to-terminal/title-and-match-rules",
@@ -270,7 +304,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:12.888Z"
+              }
             },
             {
               "id": "click-to-terminal/03-menu-switch-to-terminal/background-and-non-windows",
@@ -294,9 +333,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:13.622Z"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T22:57:41+08:00",
+            "note": "使用者 2026-10-09 匯出結果：必測項（右鍵實切）通過；兩個 WT 視窗、/rename 實測兩項建議項略過"
+          }
         },
         {
           "id": "04-jump-failure-hints",
@@ -324,7 +372,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "錯了一眼就看得到、不傷資料",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:22.946Z"
+              }
             },
             {
               "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-13",
@@ -348,7 +401,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "要開兩個同名分頁；錯了很容易發現",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:24.371Z"
+              }
             },
             {
               "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-15-16-multi-window",
@@ -372,7 +430,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "需要多視窗／關掉全部 WT；錯了只是叫錯視窗",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:26.284Z"
+              }
             },
             {
               "id": "click-to-terminal/04-jump-failure-hints/AC-JUMP-19-20-timeout-busy",
@@ -396,9 +459,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者略過",
+                "at": "2026-10-09T14:55:27.632Z"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T22:57:41+08:00",
+            "note": "使用者 2026-10-09 匯出結果：4 項全部略過（提示框外觀尚無人工目視，程式與測試已驗）"
+          }
         },
         {
           "id": "05-click-dot-to-jump",
@@ -426,7 +498,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "和 03 卡必測項同一個前景問題，那項過了這項通常也過；錯了一眼就看得到",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:57:36.941Z"
+              }
             },
             {
               "id": "click-to-terminal/05-click-dot-to-jump/drag-threshold-feel",
@@ -450,7 +527,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "手感只有你能判斷",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:56:16.257Z"
+              }
             },
             {
               "id": "click-to-terminal/05-click-dot-to-jump/AC-JUMP-07-12-OPS-04-08",
@@ -474,9 +556,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:56:19.894Z"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T22:57:41+08:00",
+            "note": "使用者 2026-10-09 匯出結果：3 項全部通過（含拖曳門檻 10 px 手感 OK）"
+          }
         },
         {
           "id": "06-click-wolf-to-jump",
@@ -504,7 +595,12 @@ window.VERIFY_DATA = {
               "manualOnly": true,
               "manualOnlyReason": "紅線 2：涉及時間排序與逾時規則，必須由你驗算；看表即可，約 1 分鐘",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:56:56.824Z"
+              }
             },
             {
               "id": "click-to-terminal/06-click-wolf-to-jump/real-click-wolf",
@@ -528,7 +624,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "錯了一眼就看得到",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者驗收通過",
+                "at": "2026-10-09T14:57:02.998Z"
+              }
             },
             {
               "id": "click-to-terminal/06-click-wolf-to-jump/outside-wolf-non-windows",
@@ -552,9 +653,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "skip",
+                "note": "使用者未填（AI 已驗過・可略過）",
+                "at": "2026-10-09T22:57:41+08:00"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T22:57:41+08:00",
+            "note": "使用者 2026-10-09 匯出結果：必測項（挑選規則驗算）與實點小狼通過"
+          }
         }
       ]
     }
