@@ -17,10 +17,20 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QFileSystemWatcher, QLockFile, QPoint, QRect, QSize, Qt, QTimer, QUrl
-from PySide6.QtGui import (QAction, QActionGroup, QBrush, QColor, QDesktopServices, QFont,
-                           QFontMetrics, QIcon, QPainter, QPen, QPixmap)
-from PySide6.QtWidgets import (QApplication, QMenu, QMessageBox, QSystemTrayIcon, QToolTip,
-                               QWidget)
+from PySide6.QtGui import (
+    QAction,
+    QActionGroup,
+    QBrush,
+    QColor,
+    QDesktopServices,
+    QFont,
+    QFontMetrics,
+    QIcon,
+    QPainter,
+    QPen,
+    QPixmap,
+)
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
 
 STATE_DIR = Path.home() / ".terminalpet"
 # 每個 Claude Code session 各寫一個狀態檔到這個資料夾（由 pet-state.sh 寫入）。
