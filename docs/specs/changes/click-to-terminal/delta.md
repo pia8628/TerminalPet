@@ -16,8 +16,8 @@
 ### 名詞定義
 
 - **session 標題**：Claude Code 為該 session 取的名稱（也就是 Windows Terminal 分頁上顯示的那段文字）。使用者用 `/rename` 改過名稱時，以最後一次改的名稱為準；沒改過則以 Claude Code 最後一次自動產生的標題為準。只看對話紀錄檔**最後 1 MB** 的內容（Claude Code 會在對話中反覆寫入標題，2026-10-09 實測本機最大 18 MB 的紀錄檔，最後一筆標題距檔尾不到 30 KB）；這段內容裡找不到任何標題時，該 session「沒有標題」。
-- **狀態前綴**：Claude Code 加在分頁標題最前面、表示狀態的「一個狀態符號＋一個空白」。狀態符號只認明確清單：`✳`（U+2733，閒置）、`◐`（U+25D0，執行中），為 2026-10-09 以 UI Automation 對本機 WT 分頁取樣所得。清單以外的字元一律不視為狀態前綴。session 標題本身**不做任何改寫**，只去掉頭尾空白。
-- **分頁比對**：分頁標題與 session 標題**完全相同**，或分頁標題恰好等於「一個狀態前綴＋session 標題」，才算同名分頁（區分大小寫）。session 標題為空時不算同名。例：session 標題 `任務進度條 Phase 4` 與分頁 `✳ 任務進度條 Phase 4`、`◐ 任務進度條 Phase 4`、`任務進度條 Phase 4` 都同名；session 標題 `.env` 與分頁 `env`、`✳ env` 都不同名；session 標題 `env` 與分頁 `# env`、`$ env` 都不同名。比對範圍是目前所有 Windows Terminal 視窗的所有分頁。
+- **狀態前綴**：Claude Code 加在分頁標題最前面、表示狀態的「一個狀態符號＋一個空白」。狀態符號只認明確清單：`✳`（U+2733，閒置）、`◐`（U+25D0，執行中）、`◑`（U+25D1，執行中；分頁被聚焦時與 `◐` 約每秒交替），為 2026-10-09 以 UI Automation 對本機 WT 分頁取樣所得（`◑` 為 01 卡可行性實驗補充，使用者 2026-10-09 核准）。清單以外的字元一律不視為狀態前綴。session 標題本身**不做任何改寫**，只去掉頭尾空白。
+- **分頁比對**：分頁標題與 session 標題**完全相同**，或分頁標題恰好等於「一個狀態前綴＋session 標題」，才算同名分頁（區分大小寫）。session 標題為空時不算同名。例：session 標題 `任務進度條 Phase 4` 與分頁 `✳ 任務進度條 Phase 4`、`◐ 任務進度條 Phase 4`、`◑ 任務進度條 Phase 4`、`任務進度條 Phase 4` 都同名；session 標題 `.env` 與分頁 `env`、`✳ env` 都不同名；session 標題 `env` 與分頁 `# env`、`$ env` 都不同名。比對範圍是目前所有 Windows Terminal 視窗的所有分頁。
 - **點一下**：左鍵按下到放開之間，滑鼠移動距離未超過系統的拖曳門檻（Windows 預設約 4 px）。超過門檻才算拖曳。
 - **跳轉提示**：桌寵旁邊出現的一個小提示框，3 秒後自動消失，不需要按任何按鈕。
 - **跳轉處理不卡桌寵**：從點擊到切換完成（或失敗）的整個處理在背景進行；處理期間桌寵的燈號更新、閃燈、拖曳、右鍵都照常運作。處理超過 3 秒仍未完成，視為切換失敗（見 AC-JUMP-19）。同一時間只處理一個跳轉，處理中再點擊會被忽略。
@@ -51,7 +51,7 @@
 - **AC-JUMP-05**（US-JUMP-01，邊界）
   - Given：session `abc123` 正在執行中，分頁標題顯示為 `◐ 任務進度條 Phase 4`
   - When：點一下 `abc123` 的小圓點
-  - Then：仍判定為同名分頁並切過去
+  - Then：仍判定為同名分頁並切過去；分頁標題顯示為 `◑ 任務進度條 Phase 4` 時亦同
 - **AC-JUMP-06**（US-JUMP-01，邊界）
   - Given：session `abc123` 的自動標題原為 `任務進度條 Phase 4`，使用者之後以 `/rename` 改名為 `跳轉功能`，分頁標題顯示 `✳ 跳轉功能`
   - When：點一下 `abc123` 的小圓點
@@ -149,7 +149,7 @@
 - 寫入端：`pet-state.sh` 從 hook stdin 取 `transcript_path`，比照 `cwd` 轉正斜線後寫入狀態檔新欄位 `transcript`；`set_state.py` 寫空字串。仍只用 bash 內建指令。
 - 標題來源：只讀 `transcript` 檔（JSONL）最後 1 MB（切掉第一行殘段），取最後一筆改名紀錄；沒有則取最後一筆 `type: ai-title` 的 `aiTitle`。只在點擊當下於背景執行緒讀，不輪詢。改名紀錄的格式見下方「改名紀錄格式」。
 - 改名紀錄格式：`{"type":"custom-title","customTitle":"<名稱>","sessionId":"<sid>"}`，2026-10-09 從本機安裝的 Claude Code 程式碼確認（`/rename` 寫入此行，且 session metadata 重寫時會與 `ai-title` 一起反覆追加，故落在檔尾 1 MB 內）。分頁標題在改名後是否顯示新名稱，列入第一張卡的可行性實驗；若不顯示，AC-JUMP-06 改為「以自動標題比對」並回頭修訂本規格。
-- 分頁比對：`STATUS_PREFIXES = ("✳ ", "◐ ")`；`tab == title or any(tab == p + title for p in STATUS_PREFIXES)`。可行性實驗要再取樣 waiting（等批准）等其他狀態下的分頁標題；發現清單外的狀態符號時，回頭修訂本規格的狀態前綴清單後才實作。
+- 分頁比對：`STATUS_PREFIXES = ("✳ ", "◐ ", "◑ ")`；`tab == title or any(tab == p + title for p in STATUS_PREFIXES)`。可行性實驗要再取樣 waiting（等批准）等其他狀態下的分頁標題；發現清單外的狀態符號時，回頭修訂本規格的狀態前綴清單後才實作。
 - 背景處理：讀檔＋UI Automation 放在 worker thread，結果用 Qt signal 回到主執行緒顯示提示；3 秒逾時由主執行緒計時。每次跳轉帶一個世代編號（generation）與取消旗標；主執行緒逾時或桌寵關閉時設定取消旗標，worker 在**每一個**切換動作（還原、Select、SetForegroundWindow）開始前檢查旗標與世代編號，不符即放棄；worker 回報結果時世代編號不符（已逾時）則主執行緒丟棄結果、不再顯示第二個提示。worker 設為 daemon thread，不阻擋桌寵關閉。
 - 分頁定位：Windows UI Automation（找 class `CASCADIA_HOSTING_WINDOW_CLASS` 視窗底下的 TabItem，比對名稱後 Select），視窗以 Win32 API 還原並帶到前景。2026-10-09 已實測可列出分頁名稱與 RuntimeId。用 `ctypes`／`comtypes` 或 PySide6 現有能力實作，新增套件須依紅線 6 先查證。
 - 前景切換：Windows 對「把別的程式帶到前景」有限制（SetForegroundWindow），使用者點擊桌寵時桌寵擁有前景權，通常可行；可行性實驗須確認。
@@ -174,5 +174,6 @@
 - 在桌寵上顯示 session 標題
 - 分割窗格（split pane）中切到特定窗格（只切到分頁）
 - 簡易進度顯示（另開 change）
+- 使用者把 Claude Code 設定 `terminalTitleFromRename` 改為 `false`（改名後分頁維持自動標題）時的比對；預設為 `true`（01 卡實驗發現，使用者 2026-10-09 決定這次不做）
 
 <!-- codex-peer-reviewed: 2026-10-09T04:19:58Z rounds=6 verdict=approved -->

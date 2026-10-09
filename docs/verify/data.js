@@ -26,6 +26,7 @@ window.VERIFY_DATA = {
         {
           id: "01-feasibility-spike",
           title: "01 可行性實驗：列出 WT 分頁並依標題切換（檢查點）",
+          verified: { at: "2026-10-09T19:25:04+08:00", note: "使用者在對話中回報驗完 OK；依建議於 delta 加入 `◑`、terminalTitleFromRename=false 列入 Out of Scope" },
           items: [
             {
               id: "click-to-terminal/01-feasibility-spike/rename-tab-title",
@@ -40,7 +41,8 @@ window.VERIFY_DATA = {
               manualOnly: false,
               manualOnlyReason: "AI 不能執行 `/rename`；錯了在 03 卡驗收時也看得出來，不傷資料",
               manualSuggested: true,
-              crossEnv: false
+              crossEnv: false,
+              result: { status: "pass", note: "使用者在對話中回報通過", at: "2026-10-09T19:25:04+08:00" }
             },
             {
               id: "click-to-terminal/01-feasibility-spike/waiting-prefix",
@@ -55,7 +57,8 @@ window.VERIFY_DATA = {
               manualOnly: false,
               manualOnlyReason: "AI 觸發不了等批准；錯了只是跳不過去，容易發現",
               manualSuggested: true,
-              crossEnv: false
+              crossEnv: false,
+              result: { status: "pass", note: "使用者在對話中回報通過", at: "2026-10-09T19:25:04+08:00" }
             },
             {
               id: "click-to-terminal/01-feasibility-spike/uia-list-match-select",
@@ -70,7 +73,8 @@ window.VERIFY_DATA = {
               manualOnly: false,
               manualOnlyReason: "",
               manualSuggested: false,
-              crossEnv: false
+              crossEnv: false,
+              result: { status: "pass", note: "使用者在對話中回報通過", at: "2026-10-09T19:25:04+08:00" }
             },
             {
               id: "click-to-terminal/01-feasibility-spike/status-prefix-sampling",
@@ -85,7 +89,8 @@ window.VERIFY_DATA = {
               manualOnly: false,
               manualOnlyReason: "",
               manualSuggested: false,
-              crossEnv: false
+              crossEnv: false,
+              result: { status: "pass", note: "使用者在對話中回報通過", at: "2026-10-09T19:25:04+08:00" }
             }
           ]
         }
