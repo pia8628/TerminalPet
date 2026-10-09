@@ -1,6 +1,15 @@
-# commit 前自動跑 Ruff 檢查（安裝：venv/Scripts/pre-commit install）
+# commit 前自動跑 Ruff 檢查與 pytest（安裝：venv/Scripts/pre-commit install）
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.16.10
     hooks:
       - id: ruff-check
+  - repo: local
+    hooks:
+      # 用 venv 裡的 Python 跑全部測試；只有改到 .py 檔的 commit 才會觸發
+      - id: pytest
+        name: pytest
+        entry: ./venv/Scripts/python.exe -m pytest tests -q
+        language: system
+        types: [python]
+        pass_filenames: false
