@@ -217,3 +217,54 @@ def test_T14_AC_HOOK_01_written_file_readable_by_pet(home, monkeypatch):
     result = pet.load_sessions()
 
     assert [(s.label, s.state) for s in result] == [("Blog", "waiting")]
+
+
+TRANSCRIPT_WIN = "C:\\Users\\me\\.claude\\projects\\D--Projects-TerminalPet\\abc123.jsonl"
+TRANSCRIPT_POSIX = "C:/Users/me/.claude/projects/D--Projects-TerminalPet/abc123.jsonl"
+
+
+@needs_bash
+@pytest.mark.parametrize("state", ["idle", "thinking", "working", "waiting", "done"])
+def test_T15_AC_HOOK_15_transcript_path_normalized(home, state):
+    run_hook(home, state, payload={"session_id": "abc123", "cwd": "D:\\Projects\\TerminalPet\\",
+                                   "transcript_path": TRANSCRIPT_WIN})
+
+    data = read(home, "abc123")
+    assert data["transcript"] == TRANSCRIPT_POSIX
+    # 其他欄位維持既有行為（AC-HOOK-09）
+    assert data["state"] == state
+    assert data["project"] == "TerminalPet"
+    assert data["cwd"] == "D:/Projects/TerminalPet"
+    assert data["sid"] == "abc123"
+
+
+@needs_bash
+def test_T16_AC_HOOK_15_transcript_with_existing_file_keeps_since(home):
+    write_existing(home, "abc123", state="working", ts=100.0, since=100.0, start=100.0)
+
+    run_hook(home, "working", payload={"session_id": "abc123", "transcript_path": TRANSCRIPT_WIN})
+    data = read(home, "abc123")
+
+    assert data["transcript"] == TRANSCRIPT_POSIX
+    assert data["since"] == data["start"] == 100.0  # AC-HOOK-13 不受影響
+
+
+@needs_bash
+@pytest.mark.parametrize("payload", [{"session_id": "abc123"}, None])
+def test_T17_AC_HOOK_16_no_transcript_path_writes_empty(home, payload):
+    run_hook(home, "working", payload=payload)
+
+    data = read(home, "abc123" if payload else "default")
+    assert data["transcript"] == ""
+    assert data["state"] == "working"
+
+
+def test_T18_transcript_parsing_uses_only_bash_builtins():
+    """新欄位的解析不得新增外部指令（jq、python、sed…），維持燈號延遲。"""
+    text = SCRIPT.read_text(encoding="utf-8")
+    lines = [ln for ln in text.splitlines() if "transcript" in ln and not ln.lstrip().startswith("#")]
+
+    assert lines
+    for line in lines:
+        for tool in ("jq", "python", "sed ", "grep", "awk", "cat ", "$(", "`"):
+            assert tool not in line, line

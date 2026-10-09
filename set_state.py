@@ -46,6 +46,7 @@ def write_state(state: str, session: str = "manual", project: str | None = None)
         "sid": session,
         "project": project or old.get("project") or session,
         "cwd": "",
+        "transcript": "",
     }
     tmp = target.with_suffix(".tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")

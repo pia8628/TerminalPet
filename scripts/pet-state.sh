@@ -47,6 +47,7 @@ IFS= read -r -d '' -t 2 input
 str_re='[[:space:]]*:[[:space:]]*"([^"]*)"'
 re_sid="\"session_id\"$str_re"
 re_cwd="\"cwd\"$str_re"
+re_transcript="\"transcript_path\"$str_re"
 re_ask="\"tool_name\"[[:space:]]*:[[:space:]]*\"(AskUserQuestion|ExitPlanMode)\""
 
 sid=""
@@ -76,6 +77,12 @@ project="${cwd##*/}"
 [ -z "$project" ] && project="$cwd"
 [ -z "$project" ] && project="$sid"
 
+# 對話紀錄檔路徑（桌寵點擊跳轉時讀 session 標題用），比照 cwd 轉正斜線；沒有就是空字串
+transcript=""
+[[ $input =~ $re_transcript ]] && transcript="${BASH_REMATCH[1]}"
+transcript="${transcript//\\//}"
+transcript="${transcript//\/\//\/}"
+
 # 沿用既有檔案的 start（首次出現時間），同狀態則沿用 since
 start="$now"
 since="$now"
@@ -95,6 +102,6 @@ fi
 
 # 原子寫入（tmp 檔名帶 PID，避免同 session 的兩個 hook 互踩 tmp 檔）
 tmp="$dir/.$sid.$$.tmp"
-printf '{"state":"%s","ts":%s,"since":%s,"start":%s,"sid":"%s","project":"%s","cwd":"%s"}' \
-    "$state" "$now" "$since" "$start" "$sid" "$project" "$cwd" > "$tmp"
+printf '{"state":"%s","ts":%s,"since":%s,"start":%s,"sid":"%s","project":"%s","cwd":"%s","transcript":"%s"}' \
+    "$state" "$now" "$since" "$start" "$sid" "$project" "$cwd" "$transcript" > "$tmp"
 mv -f "$tmp" "$f"

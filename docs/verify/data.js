@@ -93,6 +93,84 @@ window.VERIFY_DATA = {
               result: { status: "pass", note: "使用者在對話中回報通過", at: "2026-10-09T19:25:04+08:00" }
             }
           ]
+        },
+        {
+          "id": "02-hook-transcript-path",
+          "title": "02 寫入端記錄對話紀錄檔路徑",
+          "items": [
+            {
+              "id": "click-to-terminal/02-hook-transcript-path/AC-HOOK-15",
+              "text": "hook 收到帶 Windows 路徑的 `transcript_path` 時，狀態檔多一個 `transcript` 欄位，反斜線轉成正斜線。\n\n預期：\n- `C:\\Users\\me\\.claude\\projects\\D--Projects-TerminalPet\\abc123.jsonl` 寫成 `C:/Users/me/.claude/projects/D--Projects-TerminalPet/abc123.jsonl`\n- 其他欄位（state、since、start、project、cwd）行為不變",
+              "spec": {
+                "ref": "delta.md AC-HOOK-15",
+                "quote": "狀態檔多一個紀錄檔路徑欄位……（反斜線轉正斜線）；其他欄位與既有行為（AC-HOOK-09～14）相同"
+              },
+              "risk": "low",
+              "riskReason": "純字串轉換，五種狀態都有測試並做過反向確認",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet_state.py::test_T15_AC_HOOK_15_transcript_path_normalized、test_T16_AC_HOOK_15_transcript_with_existing_file_keeps_since"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "HOME 指向暫存資料夾，用 Git Bash 餵 JSON 執行 `pet-state.sh working` → 結束碼 0，`transcript` 為正斜線路徑，project／cwd 正確"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/02-hook-transcript-path/AC-HOOK-16",
+              "text": "hook 資料沒有 `transcript_path`、stdin 沒資料、或 JSON 壞掉，以及 `set_state.py` 寫的假 session。\n\n預期：\n- `transcript` 為空字串\n- 狀態照常寫入、腳本不報錯（結束碼 0）",
+              "spec": {
+                "ref": "delta.md AC-HOOK-16",
+                "quote": "紀錄檔路徑欄位為空字串，狀態照常寫入"
+              },
+              "risk": "low",
+              "riskReason": "有測試涵蓋，壞 JSON 也實際跑過",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet_state.py::test_T17_AC_HOOK_16_no_transcript_path_writes_empty、tests/test_set_state.py::test_T11_AC_HOOK_16_set_state_writes_empty_transcript"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "實際執行：無 transcript_path → 空字串；stdin 空 → default.json 空字串；截斷的壞 JSON → 結束碼 0；`set_state.py waiting` 含 `\"transcript\": \"\"`，`pet.load_sessions()` 正常讀取"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/02-hook-transcript-path/real-session",
+              "text": "更新 plugin（或重跑 `install.py`）讓 hook 用到新版腳本後，在任一個 Claude Code session 隨便問一句話，再打開：\n\n```\n%USERPROFILE%\\.terminalpet\\sessions\\<那個 session 的 id>.json\n```\n\n預期：\n- 檔案裡有 `\"transcript\":\"C:/Users/.../xxx.jsonl\"`\n- 照那個路徑去找，檔案真的存在",
+              "spec": {
+                "ref": "02 卡「做完能 demo 什麼」",
+                "quote": ""
+              },
+              "risk": "medium",
+              "riskReason": "依賴 Claude Code 實際送出的欄位；沒有這欄，後面的跳轉功能全部找不到標題",
+              "coverage": {
+                "auto": {
+                  "covered": false,
+                  "ref": ""
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "要真的 session 觸發安裝後的 hook；錯了在 03 卡驗收時會直接看到跳不過去，容易發現",
+              "manualSuggested": true,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }
