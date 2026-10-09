@@ -1,6 +1,6 @@
 # 長線開發紀錄：click-to-terminal
 
-**狀態**：進行中（進行中／暫停／已跑完）
+**狀態**：已跑完（2026-10-09）
 
 **分支**：`feature/click-to-terminal`
 
