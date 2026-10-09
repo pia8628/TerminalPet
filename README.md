@@ -49,8 +49,11 @@ python pet.py light    # 紅綠燈版
 ## 操作
 
 - **拖曳**：左鍵按住拖動（位置會記住；改變大小時會固定住靠近螢幕邊緣的那一角）
+- **點一下跳到終端機**（Windows Terminal）：左鍵點某個 session 的圓點或清單列，直接切到它所在的分頁；
+  動物版點小狼，切到最需要你注意的那個 session。跳不過去時（找不到分頁、分頁同名、切換失敗）
+  桌寵旁會出現提示，3 秒後自動消失。靠 session 標題比對分頁，剛開、還沒有標題的 session 跳不過去。
 - **右鍵選單**：
-  - 每個 session 一項：開啟資料夾、從清單移除
+  - 每個 session 一項：切換到終端機（Windows）、開啟資料夾、從清單移除
   - 清除閒置的 session
   - 外觀（動物版／紅綠燈版）、顯示專案名稱
   - 桌面通知：有 session 需要你或完成時跳 Windows 通知（開啟後會出現系統匣圖示）
@@ -96,6 +99,8 @@ python install.py --uninstall
 寫入前會備份成 `settings.json.terminalpet.bak`。重複執行是安全的（冪等）。
 
 裝完後要**重啟 Claude Code session**（或開一次 `/hooks`）新的 hooks 才會生效。
+從舊版升級時也要更新 hooks（重跑 `install.py`，或在 Claude Code 更新 plugin），
+「點一下跳到終端機」才找得到 session 對應的分頁。
 桌寵本身沒開時，hooks 只是寫幾個小檔案，不影響 Claude Code 運作。
 
 ## 運作方式
@@ -103,7 +108,7 @@ python install.py --uninstall
 ```
 Claude Code hooks ──bash pet-state.sh <狀態>──▶ ~/.terminalpet/sessions/<session_id>.json
   （async，不拖慢工具呼叫）                         │  每個 session 一個檔，原子寫入
-                                                   │  內含狀態、專案名稱(cwd)、時間戳記
+                                                   │  內含狀態、專案名稱(cwd)、時間戳記、對話紀錄檔路徑
                                pet.py 監看資料夾（QFileSystemWatcher + 250ms 輪詢兜底）
                                每個 session 一個燈，依開始時間排序
 ```
@@ -122,6 +127,9 @@ Claude Code hooks ──bash pet-state.sh <狀態>──▶ ~/.terminalpet/sessi
 `pet-state.sh` 全程用 bash 內建指令（Windows Git Bash 上每個外部程式約 50–80ms），
 並以微秒時間戳記拒絕亂序的舊事件，避免 async hook 晚到把紅燈蓋掉。
 
+點一下跳到終端機時，桌寵會讀對話紀錄檔最後 1 MB 裡的 session 標題（只讀標題，不讀對話內容），
+再用 Windows UI Automation 找出同名的 Windows Terminal 分頁切過去。
+
 終端機直接關掉時 SessionEnd 不會觸發，那個 session 會依上表逾時轉灰、最後被清掉，
 也可以右鍵「從清單移除」。
 
@@ -139,7 +147,7 @@ python set_state.py clear    # 清掉所有假 session
 
 - [x] 動物版換成原創小狼像素圖（`assets/wolf_*.png`，橘色 Q 版）
 - [x] 多 session 個別顯示、開機自動啟動、桌面通知
-- [ ] 點擊 session 跳到對應的終端機視窗／分頁
+- [x] 點擊 session 跳到對應的終端機視窗／分頁（Windows Terminal）
 - [ ] 偵測 Claude 程序已結束（終端機直接關掉）時立即移除
 - [ ] 小狼改 2 格輪播做出動畫感
 - [ ] 打包成 `pipx install` 或單一 exe，免裝 Python
