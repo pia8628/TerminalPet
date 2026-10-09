@@ -692,7 +692,12 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "錯了一眼就看得到",
               "manualSuggested": true,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者在對話中回報通過",
+                "at": "2026-10-09T23:24:22+08:00"
+              }
             },
             {
               "id": "click-to-terminal/07-animal-dots-to-jump/drag-non-windows-outside",
@@ -716,9 +721,18 @@ window.VERIFY_DATA = {
               "manualOnly": false,
               "manualOnlyReason": "",
               "manualSuggested": false,
-              "crossEnv": false
+              "crossEnv": false,
+              "result": {
+                "status": "pass",
+                "note": "使用者在對話中回報通過",
+                "at": "2026-10-09T23:24:22+08:00"
+              }
             }
-          ]
+          ],
+          "verified": {
+            "at": "2026-10-09T23:24:22+08:00",
+            "note": "使用者在對話中回報「07過了」"
+          }
         }
       ]
     }
