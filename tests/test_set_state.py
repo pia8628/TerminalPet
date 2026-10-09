@@ -123,3 +123,9 @@ def test_T10_AC_TOOL_01_written_file_readable_by_pet(sessions_dir, run):
     result = pet.load_sessions(now=1001.0)
 
     assert [(s.label, s.state) for s in result] == [("Blog", "done")]
+
+
+def test_T11_AC_HOOK_16_set_state_writes_empty_transcript(sessions_dir, run):
+    run("waiting")
+
+    assert read(sessions_dir, "manual")["transcript"] == ""

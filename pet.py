@@ -2,7 +2,8 @@
 
 一個透明、無邊框、永遠置頂的小視窗，讀取 ~/.terminalpet/sessions/ 底下
 每個 Claude Code session 的狀態檔，每個 session 各顯示一個燈。
-可用滑鼠拖曳，右鍵選單可切換外觀、顯示專案名稱、桌面通知等。
+可用滑鼠拖曳；左鍵點一下某個 session 的圓點（或清單列）可切到它的終端機分頁，動物版點小狼則切到最需要注意的 session；
+右鍵選單可切換外觀、顯示專案名稱、桌面通知等。
 
 兩種外觀（啟動參數會記住，之後不帶參數就沿用上次的外觀）：
     python pet.py            動物版（小狼顯示最需要注意的狀態，下方是各 session 燈）
@@ -11,12 +12,13 @@
 
 import json
 import sys
+import threading
 import time
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QLockFile, QPoint, QRect, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QFileSystemWatcher, QLockFile, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -30,7 +32,9 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
 )
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
+
+import wt_jump
 
 STATE_DIR = Path.home() / ".terminalpet"
 # 每個 Claude Code session 各寫一個狀態檔到這個資料夾（由 pet-state.sh 寫入）。
@@ -46,6 +50,10 @@ else:
 # 輪詢間隔（毫秒）。Windows 的 QFileSystemWatcher 對「檔案覆寫」偵測不可靠，
 # 實務上是靠這個輪詢兜底，所以間隔就是使用者感受到的最壞延遲，設短一點。
 POLL_MS = 250
+
+# 切換到終端機：處理超過這個時間仍未完成就視為切換失敗；跳轉提示顯示這麼久後自動消失
+JUMP_TIMEOUT_MS = 3000
+HINT_MS = 3000
 
 # 逾時規則依狀態而定：
 # - waiting（等你批准／回答）不會自己消失，你沒處理就一直亮著
@@ -123,6 +131,7 @@ class Session:
     ts: float       # 最後一次 hook 更新
     start: float    # 第一次出現，用來固定排序
     label: str = ""
+    transcript: str = ""  # 對話紀錄檔路徑（跳轉時讀 session 標題用；假 session 為空）
 
 
 def effective_state(raw: str, age: float) -> str:
@@ -178,6 +187,7 @@ def load_sessions(now: float | None = None, cache: dict | None = None) -> list[S
             since=since,
             ts=ts,
             start=start,
+            transcript=str(data.get("transcript") or ""),
         ))
     for name in list(cache):
         if name not in seen_names:
@@ -197,6 +207,17 @@ def aggregate_state(sessions: list[Session]) -> str:
     if not sessions:
         return "idle"
     return max((s.state for s in sessions), key=STATE_PRIORITY.__getitem__)
+
+
+def wolf_jump_target(sessions: list[Session]) -> Session | None:
+    """點小狼要跳去的 session：小狼顯示的那個狀態（aggregate_state）中首次出現最早者。
+
+    全部 idle（含逾時轉 idle）或沒有 session 時回 None，表示點了沒有反應。
+    """
+    state = aggregate_state(sessions)
+    if state == "idle":
+        return None
+    return min((s for s in sessions if s.state == state), key=lambda s: (s.start, s.sid))
 
 
 def format_elapsed(seconds: float) -> str:
@@ -292,6 +313,134 @@ def dot_pixmap(state: str, size: int = 32) -> QPixmap:
     return pm
 
 
+class JumpRunner(QObject):
+    """在背景執行緒跑「切換到終端機」（讀標題＋UI Automation），結果用 Qt signal 送回主執行緒。
+
+    背景處理期間主執行緒照常跑事件迴圈，桌寵的燈號、閃燈、拖曳、右鍵都不受影響。
+    同一時間只處理一個跳轉；每次跳轉帶一個世代編號與取消旗標：
+    - 主執行緒計時，超過 JUMP_TIMEOUT_MS 就設取消旗標並回報 failed
+    - 背景執行緒在每個切換動作開始前檢查旗標與世代編號，不符就放棄
+    - 背景結果晚到（世代編號已不是進行中的那個）就丟掉，不會再回報第二次
+    """
+
+    finished = Signal(object)  # wt_jump.JumpResult，在主執行緒收到；每次跳轉只回報一次
+    _done = Signal(int, object)  # 背景執行緒 → 主執行緒：（世代編號, 結果）
+
+    def __init__(self, parent=None, job=None, timeout_ms: int | None = None):
+        super().__init__(parent)
+        self._job = job  # 測試可換成假的跳轉函式；None 表示用 wt_jump.jump_to_session
+        self._timeout_ms = JUMP_TIMEOUT_MS if timeout_ms is None else timeout_ms
+        self._generation = 0
+        self._active: int | None = None  # 進行中的世代編號；None 表示閒置
+        self._cancel: threading.Event | None = None
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self._on_timeout)
+        self._done.connect(self._on_done)
+
+    @property
+    def busy(self) -> bool:
+        return self._active is not None
+
+    def start(self, transcript: str) -> bool:
+        """開始跳轉；已有跳轉處理中時忽略並回傳 False。"""
+        if self.busy:
+            return False
+        self._generation += 1
+        generation = self._generation
+        cancel = threading.Event()
+        self._active, self._cancel = generation, cancel
+
+        def cancelled() -> bool:
+            return cancel.is_set() or self._active != generation
+
+        self._timer.start(self._timeout_ms)
+        threading.Thread(target=self._run, args=(generation, transcript, cancelled),
+                         daemon=True, name="wt-jump").start()
+        return True
+
+    def cancel(self) -> None:
+        """取消進行中的跳轉（桌寵關閉時呼叫）；不回報結果。"""
+        self._timer.stop()
+        if self._cancel:
+            self._cancel.set()
+        self._active, self._cancel = None, None
+
+    def _run(self, generation: int, transcript: str, cancelled) -> None:
+        job = self._job or wt_jump.jump_to_session
+        try:
+            result = job(transcript, cancelled)
+        except Exception:  # 背景執行緒的錯誤不能讓桌寵中止
+            result = wt_jump.JumpResult(wt_jump.FAILED)
+        self._done.emit(generation, result)  # 跨執行緒發送，Qt 會排進主執行緒處理
+
+    def _on_done(self, generation: int, result) -> None:
+        if generation != self._active:
+            return  # 已逾時或已取消：晚到的結果丟掉，不顯示第二個提示
+        self._timer.stop()
+        self._active, self._cancel = None, None
+        self.finished.emit(result)
+
+    def _on_timeout(self) -> None:
+        if not self.busy:
+            return
+        self.cancel()  # 不再開始新的切換動作
+        self.finished.emit(wt_jump.JumpResult(wt_jump.FAILED))
+
+
+def jump_hint_text(result) -> str | None:
+    """依跳轉結果決定跳轉提示的文字；成功或非 Windows 時不提示（回傳 None）。"""
+    if result.code == wt_jump.AMBIGUOUS:
+        return f"有 {result.matches} 個分頁同名，請手動切換"
+    if result.code in (wt_jump.NO_TITLE, wt_jump.NO_WINDOW, wt_jump.NO_MATCH):
+        return "找不到這個 session 的分頁"
+    if result.code == wt_jump.FAILED:
+        return "切換失敗，請手動切換"
+    return None
+
+
+class JumpHint(QLabel):
+    """跳轉提示：桌寵旁邊的小提示框，HINT_MS 後自動消失，不需要按任何按鈕。
+
+    不搶焦點（剛叫到前面的 WT 不會被搶走前景）、不接收滑鼠（不擋桌寵的拖曳、右鍵、點擊）。
+    """
+
+    GAP = 6  # 與桌寵的間距
+
+    def __init__(self, parent: QWidget):
+        super().__init__(parent)
+        self.setWindowFlags(Qt.ToolTip | Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint
+                            | Qt.WindowDoesNotAcceptFocus)
+        self.setAttribute(Qt.WA_ShowWithoutActivating)
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
+        font = QFont()
+        font.setPointSize(9)
+        self.setFont(font)
+        self.setStyleSheet("QLabel { background: #2b2b2b; color: #f0f0f0;"
+                           " border: 1px solid #5a5a5a; padding: 6px 10px; }")
+        self._timer = QTimer(self)
+        self._timer.setSingleShot(True)
+        self._timer.timeout.connect(self.hide)
+
+    def show_near(self, text: str, anchor: QRect) -> None:
+        self.setText(text)
+        self.adjustSize()
+        self.place(anchor)
+        self.show()
+        self._timer.start(HINT_MS)  # 再次顯示時重新計時
+
+    def place(self, anchor: QRect) -> None:
+        """放在桌寵正上方（上方放不下就放下方），水平置中並夾在螢幕內。"""
+        screen = (QApplication.screenAt(anchor.center()) or QApplication.primaryScreen()).availableGeometry()
+        x = anchor.center().x() - self.width() // 2
+        y = anchor.top() - self.GAP - self.height()
+        if y < screen.top():
+            y = anchor.bottom() + self.GAP
+        x = max(screen.left(), min(x, screen.right() - self.width() + 1))
+        y = max(screen.top(), min(y, screen.bottom() - self.height() + 1))
+        self.move(x, y)
+
+
 class PetWindow(QWidget):
     def __init__(self, config: dict):
         super().__init__()
@@ -301,11 +450,20 @@ class PetWindow(QWidget):
         self._signature = None
         self._last_states: dict[str, str] | None = None  # None = 尚未讀過，第一次不發通知
         self._drag_offset = QPoint()
+        self._press_global = QPoint()
+        self._pressed = False
         self._dragged = False
         self._wolf_rect = QRect()
         self._hits: list[tuple[QRect, Session | None]] = []
         self._tray: QSystemTrayIcon | None = None
         self._tray_state = None
+        self._jumper = JumpRunner(self)
+        self._jumper.finished.connect(self._on_jump_finished)
+        self._last_jump: wt_jump.JumpResult | None = None
+        self._hint = JumpHint(self)
+        app = QApplication.instance()
+        if app:
+            app.aboutToQuit.connect(self._jumper.cancel)  # 桌寵關閉：不再開始新的切換動作
 
         # 無邊框 + 永遠置頂 + Tool（避免出現在工作列）
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -518,23 +676,58 @@ class PetWindow(QWidget):
         now = time.time()
         return "\n".join(session_text(s, now) for s in self.sessions)
 
-    # ---- 拖曳 ----
+    # ---- 拖曳與點一下 ----
+    # 左鍵按下到放開之間，移動距離超過系統拖曳門檻（QApplication.startDragDistance()）才算拖曳：
+    # 移動桌寵並記住位置。未超過門檻算「點一下」：桌寵不動、不記位置，
+    # 點在圓點／清單列（紅綠燈版）或小狼（動物版）上才跳轉。
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
-            self._drag_offset = event.globalPosition().toPoint() - self.frameGeometry().topLeft()
+            self._press_global = event.globalPosition().toPoint()
+            self._drag_offset = self._press_global - self.frameGeometry().topLeft()
+            self._pressed = True
             self._dragged = False
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() & Qt.LeftButton:
-            self.move(event.globalPosition().toPoint() - self._drag_offset)
-            self._dragged = True
+        if self._pressed and event.buttons() & Qt.LeftButton:
+            pos = event.globalPosition().toPoint()
+            if not self._dragged:
+                if (pos - self._press_global).manhattanLength() <= QApplication.startDragDistance():
+                    return  # 還沒超過門檻：可能只是點一下時手抖，不移動
+                self._dragged = True
+            self.move(pos - self._drag_offset)
             event.accept()
 
     def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton and self._dragged:
+        if event.button() != Qt.LeftButton or not self._pressed:
+            return
+        self._pressed = False
+        if self._dragged:
             self.config["pos"] = [self.x(), self.y()]
             save_config(self.config)
+        else:
+            self._on_click(event.position().toPoint())
+
+    def _on_click(self, pos: QPoint):
+        """點一下：點在 session 的圓點或清單列上就切到它的終端機（兩種外觀皆同）；
+        動物版點在小狼上就切到最需要注意的 session（見 wolf_jump_target）。其他位置沒有反應。"""
+        if not wt_jump.supported():
+            return  # 非 Windows 不動作、不出提示
+        if self.config["theme"] == "animal" and self._wolf_rect.contains(pos):
+            target = wolf_jump_target(self.sessions)
+            if target:  # 全部 idle 或沒有 session：沒有反應
+                self._jump_to(target.transcript)
+            return
+        for rect, s in self._hits:
+            if rect.contains(pos):
+                if s:  # 沒有 session 時那顆灰點（s 為 None）點了沒反應
+                    self._jump_to(s.transcript)
+                return
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        if self._hint.isVisible():
+            self._hint.place(self.frameGeometry())  # 提示顯示中拖曳桌寵，提示跟著走
 
     # ---- 右鍵選單（桌寵與系統匣共用） ----
     def contextMenuEvent(self, event):
@@ -548,6 +741,8 @@ class PetWindow(QWidget):
         if self.sessions:
             for s in self.sessions:
                 sub = menu.addMenu(QIcon(dot_pixmap(s.state)), session_text(s, now))
+                if wt_jump.supported():
+                    sub.addAction("切換到終端機", lambda t=s.transcript: self._jump_to(t))
                 if s.cwd:
                     sub.addAction("開啟資料夾", lambda c=s.cwd: QDesktopServices.openUrl(
                         QUrl.fromLocalFile(c)))
@@ -596,6 +791,19 @@ class PetWindow(QWidget):
         except OSError:
             pass
         self.refresh()
+
+    # ---- 切換到終端機 ----
+    def _jump_to(self, transcript: str):
+        """所有跳轉入口（右鍵選單、點圓點、點小狼）都走這裡。"""
+        if self._jumper.busy:
+            return  # 同一時間只處理一個跳轉：處理中再觸發直接忽略，不出現提示
+        self._jumper.start(transcript)
+
+    def _on_jump_finished(self, result):
+        self._last_jump = result
+        text = jump_hint_text(result)
+        if text:
+            self._hint.show_near(text, self.frameGeometry())
 
     def _clear_idle(self):
         for s in self.sessions:

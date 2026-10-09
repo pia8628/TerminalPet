@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>人工驗收 Hub</title>
+<script src="data.js"></script>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --border:#dfe3e8; --text:#1c2024; --muted:#6b7280;
+  --accent:#2563eb; --pass:#15803d; --fail:#b91c1c; --skip:#a16207;
+  --risk-high:#b91c1c; --risk-med:#a16207; --risk-low:#4b5563;
+  --chip:#eef1f5; --code:#f2f4f7; --shadow:0 1px 2px rgba(0,0,0,.06);
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#15181c; --panel:#1d2126; --border:#333a42; --text:#e6e8eb; --muted:#98a1ad;
+    --accent:#5b91f5; --pass:#4ade80; --fail:#f87171; --skip:#fbbf24;
+    --risk-high:#f87171; --risk-med:#fbbf24; --risk-low:#98a1ad;
+    --chip:#262c33; --code:#11151a; --shadow:none;
+  }
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font:14px/1.6 "Noto Sans TC","Microsoft JhengHei",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+button,input,textarea,select{font:inherit;color:inherit}
+.layout{display:flex;min-height:100vh;align-items:stretch}
+/* 側欄 */
+aside{width:270px;flex:0 0 270px;background:var(--panel);border-right:1px solid var(--border);
+  padding:16px 12px;position:sticky;top:0;height:100vh;overflow-y:auto}
+aside h1{font-size:15px;margin:0 0 4px}
+aside .proj{font-size:12px;color:var(--muted);margin-bottom:16px;word-break:break-all}
+aside .grp{font-size:11px;color:var(--muted);letter-spacing:.05em;margin:16px 0 6px}
+aside .chg{font-size:12px;font-weight:600;margin:12px 0 4px;padding:0 4px;
+  display:flex;justify-content:space-between;gap:6px}
+aside .chg span.n{font-weight:400;color:var(--muted)}
+.navitem{display:block;width:100%;text-align:left;background:none;border:1px solid transparent;
+  border-radius:6px;padding:7px 9px;cursor:pointer;margin-bottom:2px;font-size:13px}
+.navitem.tk{padding-left:14px;border-left:2px solid var(--border);border-radius:0 6px 6px 0}
+.navitem:hover{background:var(--chip)}
+.navitem.active{background:var(--chip);border-color:var(--border);font-weight:600}
+.navitem.active.tk{border-left-color:var(--accent)}
+.navitem .sub{display:block;font-size:11px;color:var(--muted);font-weight:400}
+/* 主區 */
+main{flex:1;min-width:0;padding:20px 24px 80px;max-width:1100px}
+header.chead{margin-bottom:16px}
+header.chead h2{margin:0 0 2px;font-size:20px}
+header.chead .meta{font-size:12px;color:var(--muted)}
+.bar{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 12px;
+  border-bottom:1px solid var(--border);margin-bottom:18px}
+.progress{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;display:flex;margin-bottom:8px}
+.progress i{display:block;height:100%}
+.stats{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);align-items:center}
+.stats b{color:var(--text)}
+.filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.filters button{background:var(--panel);border:1px solid var(--border);border-radius:999px;
+  padding:4px 11px;font-size:12px;cursor:pointer}
+.filters button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.acts button{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:5px 12px;font-size:12px;cursor:pointer}
+.acts button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.acts button:disabled{opacity:.45;cursor:not-allowed}
+.savedir{font-size:11px;color:var(--muted);margin-top:8px}
+/* 總覽頁的任務卡清單 */
+.tklist{display:flex;flex-direction:column;gap:8px;margin-bottom:26px}
+.tkrow{display:flex;align-items:center;gap:12px;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;padding:11px 14px;cursor:pointer;text-align:left;width:100%}
+.tkrow:hover{border-color:var(--accent)}
+.tkrow .t{flex:1;min-width:0}
+.tkrow .t b{display:block;font-size:13px}
+.tkrow .t i{font-style:normal;font-size:12px;color:var(--muted)}
+.tkrow .n{font-size:12px;color:var(--muted);white-space:nowrap}
+/* 驗收項 */
+.item{background:var(--panel);border:1px solid var(--border);border-left-width:3px;
+  border-radius:8px;padding:13px 15px;margin-bottom:10px;box-shadow:var(--shadow)}
+.item[data-v="pass"]{border-left-color:var(--pass)}
+.item[data-v="fail"]{border-left-color:var(--fail)}
+.item[data-v="skip"]{border-left-color:var(--skip)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:7px;align-items:center}
+.chip{font-size:11px;padding:2px 8px;border-radius:999px;background:var(--chip);color:var(--muted);
+  white-space:nowrap}
+.chip.manual{background:var(--risk-high);color:#fff;font-weight:600}
+.chip.suggest{color:var(--risk-med);font-weight:600}
+.chip.skippable{color:var(--pass);font-weight:600}
+.chip.step{background:var(--accent);color:#fff;font-weight:600}
+.chip.settled{color:var(--pass)}
+.navitem .done{color:var(--pass)}
+.chip.r-high{color:var(--risk-high);font-weight:600}
+.chip.r-medium{color:var(--risk-med)}
+.chip.r-low{color:var(--risk-low)}
+.chip.ok{color:var(--pass)}
+.chip.no{color:var(--fail)}
+.itext{margin-bottom:9px}
+/* Markdown 渲染 */
+.md p{margin:0 0 8px}
+.md p:last-child{margin-bottom:0}
+.md ul,.md ol{margin:0 0 8px;padding-left:22px}
+.md li{margin-bottom:3px}
+.md h4{font-size:14px;margin:10px 0 6px}
+.md hr{border:none;border-top:1px solid var(--border);margin:10px 0}
+.md blockquote{margin:0 0 8px;padding:2px 0 2px 10px;border-left:3px solid var(--border);color:var(--muted)}
+.md code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,"Noto Sans Mono",monospace;
+  font-size:12.5px;background:var(--code);border:1px solid var(--border);border-radius:4px;padding:1px 5px}
+.md pre.code{background:var(--code);border:1px solid var(--border);border-radius:6px;
+  padding:10px 12px;overflow-x:auto;margin:0 0 9px}
+.md pre.code code{background:none;border:none;padding:0;font-size:12.5px;line-height:1.55;white-space:pre}
+.md a{color:var(--accent)}
+.md table{border-collapse:collapse;margin:0 0 9px;font-size:13px;display:block;overflow-x:auto}
+.md th,.md td{border:1px solid var(--border);padding:5px 9px;text-align:left}
+details.why{margin-bottom:9px}
+details.why summary{font-size:12px;color:var(--muted);cursor:pointer;user-select:none}
+details.why .body{font-size:12px;color:var(--muted);border-left:2px solid var(--border);
+  padding:6px 0 6px 10px;margin-top:6px}
+.verdict{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
+.verdict button{border:1px solid var(--border);background:var(--panel);border-radius:6px;
+  padding:4px 13px;font-size:12px;cursor:pointer}
+.verdict button.on[data-s="pass"]{background:var(--pass);border-color:var(--pass);color:#fff}
+.verdict button.on[data-s="fail"]{background:var(--fail);border-color:var(--fail);color:#fff}
+.verdict button.on[data-s="skip"]{background:var(--skip);border-color:var(--skip);color:#fff}
+.verdict .lbl{font-size:12px;color:var(--muted);margin-right:2px}
+.envs{border-top:1px dashed var(--border);padding-top:8px;margin-bottom:8px}
+.envs .row{display:flex;align-items:center;gap:6px;margin-bottom:5px;flex-wrap:wrap}
+.envs .row .name{font-size:12px;min-width:110px;color:var(--muted)}
+.envs .addenv{font-size:12px;background:none;border:1px dashed var(--border);border-radius:6px;
+  padding:3px 10px;cursor:pointer;color:var(--muted)}
+textarea{width:100%;min-height:38px;border:1px solid var(--border);border-radius:6px;
+  background:var(--bg);padding:7px 9px;resize:vertical;font-size:13px}
+textarea::placeholder{color:var(--muted)}
+.tnote,.cnote{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 14px}
+.tnote{margin-top:4px}
+.cnote{margin-top:26px}
+.cnote h3{margin:0 0 8px;font-size:14px}
+.note-label{font-size:12px;color:var(--muted);margin-bottom:5px}
+.pager{display:flex;gap:8px;margin-top:22px;flex-wrap:wrap}
+.pager button{background:var(--panel);border:1px solid var(--border);border-radius:6px;
+  padding:7px 14px;font-size:13px;cursor:pointer}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+.empty{color:var(--muted);padding:40px 0;text-align:center}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--text);
+  color:var(--bg);padding:9px 18px;border-radius:8px;font-size:13px;opacity:0;
+  transition:opacity .2s;pointer-events:none;z-index:50;max-width:80vw;text-align:center}
+.toast.show{opacity:1}
+.closed-banner{background:var(--chip);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px;margin-bottom:16px;font-size:13px;color:var(--muted)}
+@media(max-width:760px){
+  .layout{flex-direction:column}
+  aside{width:auto;flex:none;height:auto;position:static;border-right:none;border-bottom:1px solid var(--border)}
+  main{padding:16px}
+}
+</style>
+</head>
+<body>
+<div class="layout">
+  <aside>
+    <h1>人工驗收 Hub</h1>
+    <div class="proj" id="projName">—</div>
+    <nav id="nav"></nav>
+  </aside>
+  <main id="main"></main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+var D = window.VERIFY_DATA || null;
+var KEY_PREFIX = "verify::" + location.pathname + "::";
+function $(s, r){ return (r || document).querySelector(s); }
+function esc(s){
+  return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];
+  });
+}
+
+/* ---------- Markdown 渲染 ----------
+   驗收項的 text、spec.quote、各種理由都可以直接寫 Markdown：
+   段落、清單、標題、引言、表格、粗體、行內 code，以及三個反引號圍起來的程式碼區塊。
+   程式碼一律走 pre + code，不會被當成內文重排，也不會被 Markdown 語法吃掉。 */
+function mdInline(s){
+  var codes = [];
+  s = String(s).replace(/`([^`\n]+)`/g, function(m, c){
+    codes.push(c);
+    return "@@CODE" + (codes.length - 1) + "@@";
+  });
+  s = esc(s);
+  s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  s = s.replace(/\*\*([^*\n]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/(^|[^*\w])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/(^|[^_\w])_([^_\n]+)_/g, "$1<em>$2</em>");
+  s = s.replace(/~~([^~\n]+)~~/g, "<del>$1</del>");
+  return s.replace(/@@CODE(\d+)@@/g, function(m, i){
+    return "<code>" + esc(codes[+i]) + "</code>";
+  });
+}
+function mdRow(line){
+  return line.replace(/^\s*\|/, "").replace(/\|\s*$/, "").split("|").map(function(c){
+    return mdInline(c.trim());
+  });
+}
+function md(src){
+  if(src == null || src === "") return "";
+  var lines = String(src).replace(/\r\n?/g, "\n").split("\n");
+  var out = [], para = [], list = null, i = 0;
+  function flushPara(){ if(para.length){ out.push("<p>" + para.join("<br>") + "</p>"); para = []; } }
+  function flushList(){
+    if(list){
+      out.push("<" + list.tag + ">" +
+        list.items.map(function(x){ return "<li>" + x + "</li>"; }).join("") +
+        "</" + list.tag + ">");
+      list = null;
+    }
+  }
+  while(i < lines.length){
+    var ln = lines[i];
+    if(/^\s*```/.test(ln)){
+      flushPara(); flushList();
+      var buf = []; i++;
+      while(i < lines.length && !/^\s*```\s*$/.test(lines[i])){ buf.push(lines[i]); i++; }
+      i++;
+      out.push('<pre class="code"><code>' + esc(buf.join("\n")) + "</code></pre>");
+      continue;
+    }
+    if(/^\s*$/.test(ln)){ flushPara(); flushList(); i++; continue; }
+    var h = ln.match(/^\s*(#{1,6})\s+(.*)$/);
+    if(h){ flushPara(); flushList(); out.push("<h4>" + mdInline(h[2]) + "</h4>"); i++; continue; }
+    if(/^\s*(---+|\*\*\*+)\s*$/.test(ln)){ flushPara(); flushList(); out.push("<hr>"); i++; continue; }
+    if(/^\s*\|/.test(ln) && i + 1 < lines.length && /^\s*\|[\s:|-]+\|?\s*$/.test(lines[i + 1])){
+      flushPara(); flushList();
+      var head = mdRow(ln), rows = []; i += 2;
+      while(i < lines.length && /^\s*\|/.test(lines[i])){ rows.push(mdRow(lines[i])); i++; }
+      out.push("<table><thead><tr>" + head.map(function(c){ return "<th>" + c + "</th>"; }).join("") +
+        "</tr></thead><tbody>" + rows.map(function(r){
+          return "<tr>" + r.map(function(c){ return "<td>" + c + "</td>"; }).join("") + "</tr>";
+        }).join("") + "</tbody></table>");
+      continue;
+    }
+    var ul = ln.match(/^\s*[-*+]\s+(.*)$/);
+    var ol = ln.match(/^\s*\d+[.)]\s+(.*)$/);
+    if(ul || ol){
+      flushPara();
+      var tag = ul ? "ul" : "ol";
+      if(!list || list.tag !== tag){ flushList(); list = { tag:tag, items:[] }; }
+      list.items.push(mdInline((ul || ol)[1]));
+      i++; continue;
+    }
+    if(/^\s*>\s?/.test(ln)){
+      flushPara(); flushList();
+      out.push("<blockquote>" + mdInline(ln.replace(/^\s*>\s?/, "")) + "</blockquote>");
+      i++; continue;
+    }
+    flushList(); para.push(mdInline(ln)); i++;
+  }
+  flushPara(); flushList();
+  return out.join("");
+}
+
+var state = null;         // 目前 change 的填寫狀態
+var current = null;       // 目前 change 物件
+var currentTicket = null; // 目前任務卡（null = 該 change 的總覽頁）
+var filter = "all";       // all | untested | risky | failed
+var dirHandle = null;     // 匯出落地資料夾（docs/verify/results/）
+
+/* 儲存：localStorage 在 file:// 下是全機共用分區，故 key 必須加路徑前綴 */
+function loadLocal(changeId){
+  var blank = { verdict:{}, ticketNotes:{}, changeNote:"", envs:[] };
+  try{
+    var raw = localStorage.getItem(KEY_PREFIX + changeId);
+    if(!raw) return blank;
+    var o = JSON.parse(raw);
+    return {
+      verdict: o.verdict || {}, ticketNotes: o.ticketNotes || {},
+      changeNote: o.changeNote || "", envs: o.envs || []
+    };
+  }catch(e){ return blank; }
+}
+/* 跨電腦同步：瀏覽器的填寫只存在這台電腦。卡驗收完／change 結案時，Claude 會把定案結果
+   寫回 data.js（item.result、ticket.verified、change.closedNote），data.js 進 git，
+   別台電腦 pull 下來就看得到。合併規則：以 data.js 的定案結果為準，
+   只有這台電腦在定案「之後」又改過的項目（本機 at 晚於 result.at）才以本機為準。 */
+function ts(s){ var t = Date.parse(s || ""); return isNaN(t) ? 0 : t; }
+function load(changeId){
+  var st = loadLocal(changeId);
+  var ch = null;
+  D.changes.forEach(function(c){ if(c.id === changeId) ch = c; });
+  if(!ch) return st;
+  ch.tickets.forEach(function(t){
+    t.items.forEach(function(it){
+      var r = it.result;
+      if(!r || !r.status) return;
+      var loc = st.verdict[it.id];
+      if(loc && ts(loc.at) > ts(r.at)) return;
+      st.verdict[it.id] = { status:r.status, note:r.note || "", envs:r.envs || {}, at:r.at || "", settled:true };
+    });
+    if(t.verified && t.verified.note && !st.ticketNotes[t.id]) st.ticketNotes[t.id] = t.verified.note;
+  });
+  if(ch.closedNote && !st.changeNote) st.changeNote = ch.closedNote;
+  return st;
+}
+function touch(id){ var v = V(id); v.at = new Date().toISOString(); v.settled = false; }
+function save(){
+  try{ localStorage.setItem(KEY_PREFIX + current.id, JSON.stringify(state)); }
+  catch(e){ toast("儲存失敗：瀏覽器封鎖了本機儲存，請改用匯出"); }
+}
+function toast(msg){
+  var t = $("#toast"); t.textContent = msg; t.classList.add("show");
+  clearTimeout(toast._t);
+  toast._t = setTimeout(function(){ t.classList.remove("show"); }, 3200);
+}
+
+/* 取值 */
+function V(id){
+  if(!state.verdict[id]) state.verdict[id] = { status:"", note:"", envs:{} };
+  if(!state.verdict[id].envs) state.verdict[id].envs = {};
+  return state.verdict[id];
+}
+function changeItems(ch){
+  var out = [];
+  ch.tickets.forEach(function(t){ t.items.forEach(function(it){ out.push(it); }); });
+  return out;
+}
+function envList(){
+  var base = (D.environments || []).slice();
+  (state.envs || []).forEach(function(e){
+    if(!base.some(function(b){ return b.id === e.id; })) base.push(e);
+  });
+  return base;
+}
+
+/* 驗收層級：
+   required  人工必測（AI 驗不了，且錯了後果嚴重、難補救或難發現）
+   suggested 建議看看（AI 驗不了，但錯了容易發現、容易修，例如觀感）
+   skippable 可略過（AI 已實際驗過或有自動化測試）
+   open      沒人驗過、也沒標人工——照常要測 */
+function tier(it){
+  var cov = it.coverage || {};
+  if(it.manualOnly) return "required";
+  if(it.manualSuggested) return "suggested";
+  if((cov.auto && cov.auto.covered) || (cov.agent && cov.agent.covered)) return "skippable";
+  return "open";
+}
+/* 排序權重：人工必測 → 高風險且沒人驗過 → 沒人驗過 → 建議看看 → 可略過 */
+function weight(it){
+  var t = tier(it);
+  if(t === "required") return 0;
+  if(t === "open") return it.risk === "high" ? 1 : 2;
+  if(t === "suggested") return 3;
+  return 4;
+}
+/* 依序操作的卡（ticket.sequence）照 data.js 寫的順序，不重排 */
+function orderedItems(t){
+  if(t.sequence) return t.items.slice();
+  return t.items.map(function(it, i){ return { it:it, i:i }; })
+    .sort(function(a, b){ return (weight(a.it) - weight(b.it)) || (a.i - b.i); })
+    .map(function(x){ return x.it; });
+}
+function passFilter(it){
+  var s = V(it.id).status;
+  if(filter === "untested") return !s;
+  if(filter === "failed") return s === "fail";
+  if(filter === "risky") return !!it.manualOnly || it.risk === "high";
+  return true;
+}
+
+/* 統計 */
+function statsOf(items){
+  var s = { total:0, pass:0, fail:0, skip:0, untested:0 };
+  items.forEach(function(it){
+    s.total++;
+    var v = V(it.id).status;
+    if(v === "pass") s.pass++;
+    else if(v === "fail") s.fail++;
+    else if(v === "skip") s.skip++;
+    else s.untested++;
+  });
+  return s;
+}
+function scopeItems(){
+  return currentTicket ? currentTicket.items : changeItems(current);
+}
+
+/* 側欄：一張任務卡一頁 */
+function renderNav(){
+  $("#projName").textContent = D.project + "　·　" + (D.generatedAt || "");
+  var open = D.changes.filter(function(c){ return c.status !== "closed"; });
+  var closed = D.changes.filter(function(c){ return c.status === "closed"; });
+  function block(c){
+    var keepState = state, keepCurrent = current, keepTicket = currentTicket;
+    current = c; state = load(c.id);
+    var cs = statsOf(changeItems(c));
+    var rows = c.tickets.map(function(t){
+      var ts = statsOf(t.items);
+      var sub = esc(t.id) + "　·　" + ts.pass + "/" + ts.total + " 通過" +
+        (ts.fail ? "　✕" + ts.fail : "") + (ts.untested ? "　未測 " + ts.untested : "") +
+        (t.verified && t.verified.at ? '　<span class="done">✔ 已驗收</span>' : "");
+      var active = (keepCurrent && keepCurrent.id === c.id && keepTicket && keepTicket.id === t.id);
+      return '<button class="navitem tk' + (active ? " active" : "") +
+        '" data-go="' + esc(c.id) + '" data-tk="' + esc(t.id) + '">' + esc(t.title || t.id) +
+        '<span class="sub">' + sub + "</span></button>";
+    }).join("");
+    state = keepState; current = keepCurrent; currentTicket = keepTicket;
+    var ovActive = (current && current.id === c.id && !currentTicket);
+    return '<div class="chg"><span>' + esc(c.name) + '</span><span class="n">' +
+        (c.status === "closed" ? "已結案" : cs.pass + "/" + cs.total) + "</span></div>" +
+      '<button class="navitem' + (ovActive ? " active" : "") + '" data-go="' + esc(c.id) +
+        '">總覽・結案<span class="sub">' + c.tickets.length + " 張卡</span></button>" + rows;
+  }
+  $("#nav").innerHTML =
+    (open.length ? '<div class="grp">驗收中</div>' + open.map(block).join("") : "") +
+    (closed.length ? '<div class="grp">已結案</div>' + closed.map(block).join("") : "");
+  Array.prototype.forEach.call($("#nav").querySelectorAll("[data-go]"), function(b){
+    b.onclick = function(){ go(b.dataset.go, b.dataset.tk || null); };
+  });
+}
+
+/* 驗收項 */
+function itemHTML(it, step){
+  var v = V(it.id);
+  var cov = it.coverage || {};
+  var auto = cov.auto || {}, ag = cov.agent || {};
+  var riskTxt = { high:"風險高", medium:"風險中", low:"風險低" }[it.risk] || "風險未評";
+  var tr = tier(it);
+  var chips = [
+    step ? '<span class="chip step">步驟 ' + step + "</span>" : "",
+    tr === "required" ? '<span class="chip manual">人工必測</span>' : "",
+    tr === "suggested" ? '<span class="chip suggest">建議親手看</span>' : "",
+    tr === "skippable" ? '<span class="chip skippable">AI 已驗過・可略過</span>' : "",
+    v.settled ? '<span class="chip settled" title="結果來自 data.js，跨電腦同步">已定案' +
+      (v.at ? " " + esc(String(v.at).slice(0, 10)) : "") + "</span>" : "",
+    '<span class="chip r-' + esc(it.risk || "low") + '">' + riskTxt + "</span>",
+    auto.covered ? '<span class="chip ok">自動化測試 ✓</span>' : '<span class="chip no">自動化測試 ✕</span>',
+    ag.covered ? '<span class="chip ok">AI 驗過 ✓</span>' : '<span class="chip no">AI 驗過 ✕</span>',
+    (it.spec && it.spec.ref) ? '<span class="chip">' + esc(it.spec.ref) + "</span>" : "",
+    it.crossEnv ? '<span class="chip">跨環境</span>' : ""
+  ].join("");
+
+  var why = [
+    it.riskReason ? "**風險理由：**" + it.riskReason : "",
+    (it.manualOnly && it.manualOnlyReason) ? "**人工必測理由：**" + it.manualOnlyReason : "",
+    (!it.manualOnly && it.manualSuggested && it.manualOnlyReason) ? "**建議親手看的理由：**" + it.manualOnlyReason : "",
+    (auto.covered && auto.ref) ? "**自動化測試：**`" + auto.ref + "`" : "",
+    (ag.covered && ag.how) ? "**AI 怎麼驗的：**" + ag.how : "",
+    (it.spec && it.spec.quote) ? "**規格原文：**" + it.spec.quote : ""
+  ].filter(Boolean).join("\n\n");
+
+  function btn(s, label){
+    return '<button data-act="v" data-id="' + esc(it.id) + '" data-s="' + s + '" class="' +
+      (v.status === s ? "on" : "") + '">' + label + "</button>";
+  }
+
+  var envs = "";
+  if(it.crossEnv){
+    envs = '<div class="envs">' + envList().map(function(e){
+      var cur = v.envs[e.id] || "";
+      function eb(s, label){
+        return '<button data-act="ev" data-id="' + esc(it.id) + '" data-env="' + esc(e.id) +
+          '" data-s="' + s + '" class="' + (cur === s ? "on" : "") + '">' + label + "</button>";
+      }
+      return '<div class="row"><span class="name">' + esc(e.label) + "</span>" +
+        '<span class="verdict" style="margin:0">' + eb("pass","通過") + eb("fail","不通過") + eb("skip","略過") +
+        "</span></div>";
+    }).join("") + '<button class="addenv" data-act="addenv">＋ 新增環境</button></div>';
+  }
+
+  return '<div class="item" data-v="' + esc(v.status) + '" data-item="' + esc(it.id) + '">' +
+    '<div class="chips">' + chips + "</div>" +
+    '<div class="itext md">' + md(it.text) + "</div>" +
+    (why ? '<details class="why"><summary>依據與覆蓋細節</summary><div class="body md">' + md(why) + "</div></details>" : "") +
+    '<div class="verdict"><span class="lbl">結果</span>' + btn("pass","通過") + btn("fail","不通過") + btn("skip","略過") + "</div>" +
+    envs +
+    '<textarea data-act="note" data-id="' + esc(it.id) + '" placeholder="這一項的意見／不通過的話發生什麼">' +
+    esc(v.note) + "</textarea></div>";
+}
+
+/* 結案閘門：卡沒補齊就不准結案——逐卡驗收時 Hub 裡只有已納入的卡，
+   否則驗完第一張卡就會誤以為整個 change 驗完了 */
+function closeGate(s){
+  if(current.status === "closed") return { ok:false, why:"已結案" };
+  if(current.allTicketsLoaded !== true)
+    return { ok:false, why:"還有任務卡沒納入驗收（要等整個 change 完成、跑過 /dev-verify-spec 才會補齊）" };
+  if(!s.total) return { ok:false, why:"沒有驗收項目" };
+  if(s.untested) return { ok:false, why:"還有 " + s.untested + " 項沒測" };
+  if(s.fail) return { ok:false, why:"還有 " + s.fail + " 項不通過" };
+  return { ok:true, why:"產生結案摘要" };
+}
+
+/* 統計列（含匯出／結案鈕）；s 是「目前這一頁」的統計 */
+function barHTML(s, showFilters){
+  function pct(n){ return (s.total ? (n / s.total * 100).toFixed(2) : 0) + "%"; }
+  function fbtn(k, label){
+    return '<button data-act="filter" data-f="' + k + '" class="' + (filter === k ? "on" : "") + '">' + label + "</button>";
+  }
+  var cs = statsOf(changeItems(current));
+  var gate = closeGate(cs);
+  var closed = current.status === "closed";
+  return '<div class="bar"><div class="progress">' +
+      '<i style="width:' + pct(s.pass) + ';background:var(--pass)"></i>' +
+      '<i style="width:' + pct(s.fail) + ';background:var(--fail)"></i>' +
+      '<i style="width:' + pct(s.skip) + ';background:var(--skip)"></i></div>' +
+    '<div class="stats">' +
+      "<span>本頁共 <b>" + s.total + "</b> 項</span>" +
+      "<span>通過 <b>" + s.pass + "</b></span>" +
+      "<span>不通過 <b>" + s.fail + "</b></span>" +
+      "<span>略過 <b>" + s.skip + "</b></span>" +
+      "<span>未測 <b>" + s.untested + "</b></span>" +
+      (currentTicket ? '<span class="chip" id="chgstat">整個 change ' + cs.pass + "/" + cs.total + "</span>" : "") +
+      (current.allTicketsLoaded === true || closed ? "" :
+        '<span class="chip" title="逐卡驗收中，Hub 只放已完成的卡">任務卡尚未補齊</span>') +
+      '<span class="acts"><button data-act="export">匯出 JSON</button>' +
+      '<button data-act="pickdir" title="改選匯出要落地的資料夾">匯出位置…</button>' +
+      '<button data-act="close" class="primary" ' + (gate.ok ? "" : "disabled") +
+      ' title="' + esc(gate.why) + '">結案</button></span>' +
+    "</div>" +
+    (showFilters ? '<div class="filters">' + fbtn("all","全部") + fbtn("untested","只看未測") +
+      fbtn("risky","只看高風險／人工必測") + fbtn("failed","只看不通過") + "</div>" : "") +
+    '<div class="savedir" id="savedir"></div></div>';
+}
+function renderSaveDir(){
+  var el = $("#savedir"); if(!el) return;
+  el.textContent = dirHandle
+    ? "匯出直接寫進資料夾：" + dirHandle.name + "／（要換位置按「匯出位置…」）"
+    : (window.showDirectoryPicker
+        ? "第一次匯出會請你選一次 docs/verify/results/，之後就直接寫進去，不用再從下載資料夾搬。"
+        : "此瀏覽器不支援指定資料夾，匯出會落在下載資料夾，請手動放進 docs/verify/results/。");
+}
+
+/* 主區：一張任務卡一頁 */
+function render(){
+  if(!current){ $("#main").innerHTML = '<div class="empty">左側選一張任務卡開始驗收</div>'; return; }
+  var closed = current.status === "closed";
+  var banner = closed ? '<div class="closed-banner">此 change 已結案' +
+    (current.closedAt ? "（" + esc(current.closedAt) + "）" : "") + "，以下為當時的驗收紀錄。</div>" : "";
+
+  if(currentTicket){
+    var s = statsOf(currentTicket.items);
+    var seq = !!currentTicket.sequence;
+    var items = orderedItems(currentTicket).filter(passFilter);
+    var idx = current.tickets.indexOf(currentTicket);
+    var vf = currentTicket.verified;
+    var prev = current.tickets[idx - 1], next = current.tickets[idx + 1];
+    var tn = state.ticketNotes[currentTicket.id] || "";
+    $("#main").innerHTML =
+      '<header class="chead"><h2>' + esc(currentTicket.title || currentTicket.id) + "</h2>" +
+      '<div class="meta">' + esc(current.name) + "　·　" + esc(currentTicket.id) +
+      "　·　第 " + (idx + 1) + " ／ " + current.tickets.length + " 張卡" +
+      (vf && vf.at ? "　·　✔ 已驗收 " + esc(String(vf.at).slice(0, 10)) : "") + "</div></header>" +
+      banner +
+      (seq ? '<div class="closed-banner">這張卡的項目要<b>照順序操作</b>（前一步的結果是下一步的起點），已依步驟排列。</div>' : "") +
+      barHTML(s, true) +
+      (items.length ? items.map(function(it){
+        return itemHTML(it, seq ? (currentTicket.items.indexOf(it) + 1) + " ／ " + currentTicket.items.length : "");
+      }).join("") : '<div class="empty">目前篩選條件下沒有項目</div>') +
+      '<div class="tnote"><div class="note-label">這張任務卡的整體意見</div>' +
+      '<textarea data-act="tnote" data-id="' + esc(currentTicket.id) + '" placeholder="對這張卡的整體評語">' +
+      esc(tn) + "</textarea></div>" +
+      '<div class="pager">' +
+      '<button data-act="goto" data-tk="' + (prev ? esc(prev.id) : "") + '"' + (prev ? "" : " disabled") +
+        ">← " + (prev ? esc(prev.title || prev.id) : "沒有上一張") + "</button>" +
+      '<button data-act="goto" data-tk="' + (next ? esc(next.id) : "") + '"' + (next ? "" : " disabled") +
+        ">" + (next ? esc(next.title || next.id) : "沒有下一張") + " →</button>" +
+      '<button data-act="goto" data-tk="__overview__">總覽・結案</button></div>';
+  } else {
+    var cs = statsOf(changeItems(current));
+    var rows = current.tickets.map(function(t){
+      var ts = statsOf(t.items);
+      return '<button class="tkrow" data-act="goto" data-tk="' + esc(t.id) + '">' +
+        '<span class="t"><b>' + esc(t.title || t.id) + "</b><i>" + esc(t.id) + "</i></span>" +
+        '<span class="n">' + ts.pass + "/" + ts.total + " 通過" +
+        (ts.fail ? "　✕" + ts.fail : "") + (ts.untested ? "　未測 " + ts.untested : "") +
+        (t.verified && t.verified.at ? "　✔ 已驗收" : "") + "</span></button>";
+    }).join("");
+    $("#main").innerHTML =
+      '<header class="chead"><h2>' + esc(current.name) + "</h2>" +
+      '<div class="meta">' + esc(current.specRef || "") + "</div></header>" +
+      banner +
+      barHTML(cs, false) +
+      '<div class="tklist">' + (rows || '<div class="empty">這個 change 還沒有任務卡進 Hub</div>') + "</div>" +
+      '<div class="cnote"><h3>整張 change 的總評</h3>' +
+      '<textarea data-act="cnote" style="min-height:90px" ' +
+      'placeholder="這次功能整體的驗收意見、要退回處置的事、後續建議">' + esc(state.changeNote) + "</textarea></div>";
+  }
+  renderSaveDir();
+  renderNav();
+}
+
+/* 只更新統計列與側欄，不重建整頁——否則使用者展開的細節會被收摺、頁面會跳位 */
+function refreshStatus(){
+  var s = statsOf(scopeItems());
+  var cs = statsOf(changeItems(current));
+  function pct(n){ return (s.total ? (n / s.total * 100).toFixed(2) : 0) + "%"; }
+  var p = document.querySelectorAll(".progress i");
+  if(p.length === 3){
+    p[0].style.width = pct(s.pass);
+    p[1].style.width = pct(s.fail);
+    p[2].style.width = pct(s.skip);
+  }
+  var b = document.querySelectorAll(".stats b");
+  if(b.length === 5){
+    b[0].textContent = s.total; b[1].textContent = s.pass; b[2].textContent = s.fail;
+    b[3].textContent = s.skip;  b[4].textContent = s.untested;
+  }
+  var cg = $("#chgstat");
+  if(cg) cg.textContent = "整個 change " + cs.pass + "/" + cs.total;
+  var cb = $('[data-act="close"]');
+  if(cb){
+    var g = closeGate(cs);
+    cb.disabled = !g.ok;
+    cb.title = g.why;
+  }
+  renderNav();
+}
+
+/* 事件 */
+document.addEventListener("click", function(e){
+  var b = e.target.closest("[data-act]"); if(!b) return;
+  var a = b.dataset.act;
+  if(a === "v"){
+    var v = V(b.dataset.id);
+    v.status = (v.status === b.dataset.s) ? "" : b.dataset.s;
+    touch(b.dataset.id);
+    save();
+    var box = b.closest(".item");
+    var sc = box.querySelector(".chip.settled"); if(sc) sc.remove();
+    box.dataset.v = v.status;
+    Array.prototype.forEach.call(box.querySelectorAll('[data-act="v"]'), function(x){
+      x.classList.toggle("on", x.dataset.s === v.status);
+    });
+    refreshStatus();
+  } else if(a === "ev"){
+    var ev = V(b.dataset.id), key = b.dataset.env;
+    ev.envs[key] = (ev.envs[key] === b.dataset.s) ? "" : b.dataset.s;
+    touch(b.dataset.id);
+    save();
+    Array.prototype.forEach.call(b.closest(".row").querySelectorAll('[data-act="ev"]'), function(x){
+      x.classList.toggle("on", x.dataset.s === ev.envs[key]);
+    });
+  } else if(a === "addenv"){
+    var label = prompt("環境名稱（例：公司桌電 Chrome、家用筆電、iPhone Safari）");
+    if(!label) return;
+    if(!state.envs) state.envs = [];
+    state.envs.push({ id: "env-" + Date.now().toString(36), label: label });
+    save(); render();
+  } else if(a === "goto"){
+    if(b.disabled) return;
+    var tk = b.dataset.tk;
+    go(current.id, (!tk || tk === "__overview__") ? null : tk);
+  } else if(a === "filter"){
+    filter = b.dataset.f; render();
+  } else if(a === "export"){
+    exportJSON();
+  } else if(a === "pickdir"){
+    pickDir().then(function(h){ if(h){ toast("之後匯出會直接寫進：" + h.name); renderSaveDir(); } });
+  } else if(a === "close"){
+    closeChange();
+  }
+});
+document.addEventListener("input", function(e){
+  var t = e.target; var a = t.dataset && t.dataset.act; if(!a) return;
+  if(a === "note"){ V(t.dataset.id).note = t.value; touch(t.dataset.id); }
+  else if(a === "tnote") state.ticketNotes[t.dataset.id] = t.value;
+  else if(a === "cnote") state.changeNote = t.value;
+  else return;
+  clearTimeout(document._sv);
+  document._sv = setTimeout(save, 300);
+});
+
+/* ---------- 匯出：優先直接寫進 docs/verify/results/ ----------
+   使用者選一次資料夾，handle 存進 IndexedDB，之後匯出就直接落地，
+   不用再從下載資料夾手動剪貼。瀏覽器不支援（Firefox／Safari，或 file:// 被擋）時退回下載。 */
+var IDB_NAME = "verifyHub", IDB_STORE = "handles", DIR_KEY = "resultsDir";
+function idb(){
+  return new Promise(function(res, rej){
+    var r = indexedDB.open(IDB_NAME, 1);
+    r.onupgradeneeded = function(){ r.result.createObjectStore(IDB_STORE); };
+    r.onsuccess = function(){ res(r.result); };
+    r.onerror = function(){ rej(r.error); };
+  });
+}
+function idbGet(k){
+  return idb().then(function(db){
+    return new Promise(function(res, rej){
+      var q = db.transaction(IDB_STORE, "readonly").objectStore(IDB_STORE).get(k);
+      q.onsuccess = function(){ res(q.result); };
+      q.onerror = function(){ rej(q.error); };
+    });
+  });
+}
+function idbSet(k, v){
+  return idb().then(function(db){
+    return new Promise(function(res, rej){
+      var tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put(v, k);
+      tx.oncomplete = function(){ res(true); };
+      tx.onerror = function(){ rej(tx.error); };
+    });
+  });
+}
+function pickDir(){
+  if(!window.showDirectoryPicker){
+    toast("此瀏覽器不支援指定資料夾，匯出會落在下載資料夾");
+    return Promise.resolve(null);
+  }
+  return window.showDirectoryPicker({ id:"verify-results", mode:"readwrite" })
+    .then(function(h){
+      dirHandle = h;
+      return idbSet(DIR_KEY, h).catch(function(){ return null; }).then(function(){ return h; });
+    })
+    .catch(function(){ return null; });
+}
+function download(name, text){
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([text], { type:"application/json" }));
+  a.download = name; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 1000);
+}
+function writeToDir(h, name, text){
+  return h.getFileHandle(name, { create:true })
+    .then(function(fh){ return fh.createWritable(); })
+    .then(function(w){ return Promise.resolve(w.write(text)).then(function(){ return w.close(); }); });
+}
+/* 必須在使用者點擊的當下呼叫——選資料夾與權限都需要使用者手勢 */
+function saveFile(name, text, okMsg){
+  function fallback(){
+    download(name, text);
+    toast("已下載 " + name + "　請放進 docs/verify/results/ 後告訴 Claude");
+  }
+  if(!window.showDirectoryPicker){ fallback(); return; }
+  var step = dirHandle
+    ? dirHandle.queryPermission({ mode:"readwrite" }).then(function(p){
+        if(p === "granted") return dirHandle;
+        return dirHandle.requestPermission({ mode:"readwrite" }).then(function(p2){
+          return p2 === "granted" ? dirHandle : pickDir();
+        });
+      }).catch(function(){ return pickDir(); })
+    : pickDir();
+  step.then(function(h){
+    if(!h){ fallback(); return null; }
+    return writeToDir(h, name, text).then(function(){
+      renderSaveDir();
+      toast(okMsg + "：已寫入 " + h.name + "／" + name);
+    });
+  }).catch(function(){ fallback(); });
+}
+
+function buildResult(){
+  var items = changeItems(current);
+  var s = statsOf(items);
+  var verdict = {};
+  items.forEach(function(it){
+    var v = V(it.id);
+    if(v.status || v.note || Object.keys(v.envs).length)
+      verdict[it.id] = { status:v.status, note:v.note, envs:v.envs, at:v.at || "" };
+  });
+  return {
+    project: D.project, changeId: current.id, changeName: current.name,
+    exportedAt: new Date().toISOString(),
+    environments: envList(), summary: s,
+    verdict: verdict, ticketNotes: state.ticketNotes, changeNote: state.changeNote
+  };
+}
+function exportJSON(){
+  saveFile(current.id + ".json", JSON.stringify(buildResult(), null, 2), "已匯出");
+}
+function closeChange(){
+  var r = buildResult(); r.closeRequested = true;
+  saveFile(current.id + "-結案.json", JSON.stringify(r, null, 2), "結案檔已產出");
+}
+
+/* 啟動 */
+function parseHash(){
+  var parts = location.hash.slice(1).split("::");
+  return {
+    change: decodeURIComponent(parts[0] || ""),
+    ticket: parts[1] ? decodeURIComponent(parts[1]) : null
+  };
+}
+/* 貼網址、上一頁／下一頁也要能直接跳到那張卡 */
+window.addEventListener("hashchange", function(){
+  var h = parseHash();
+  var sameChange = current && current.id === h.change;
+  var sameTicket = (currentTicket ? currentTicket.id : null) === h.ticket;
+  if(sameChange && sameTicket) return;
+  if(h.change) go(h.change, h.ticket);
+});
+function go(changeId, ticketId){
+  var target = null;
+  D.changes.forEach(function(c){ if(c.id === changeId) target = c; });
+  if(!target) return;
+  current = target; currentTicket = null;
+  state = load(current.id);
+  if(ticketId) current.tickets.forEach(function(t){ if(t.id === ticketId) currentTicket = t; });
+  filter = "all";
+  location.hash = "#" + encodeURIComponent(current.id) +
+    (currentTicket ? "::" + encodeURIComponent(currentTicket.id) : "");
+  render();
+  window.scrollTo(0, 0);
+}
+if(!D || !D.changes || !D.changes.length){
+  document.body.innerHTML = '<div class="empty" style="padding:60px">' +
+    "找不到 data.js 的驗收資料。<br>請確認 <code>docs/verify/data.js</code> 存在，且與本檔放在同一層。</div>";
+} else {
+  (window.indexedDB ? idbGet(DIR_KEY).catch(function(){ return null; }) : Promise.resolve(null))
+    .then(function(h){ dirHandle = h || null; renderSaveDir(); });
+  var want = parseHash();
+  var wantChange = want.change, wantTicket = want.ticket;
+  var first = null;
+  D.changes.forEach(function(c){ if(!first && c.id === wantChange) first = c; });
+  if(!first){
+    wantTicket = null;
+    D.changes.forEach(function(c){ if(!first && c.status !== "closed") first = c; });
+  }
+  if(!first) first = D.changes[0];
+  go(first.id, wantTicket);
+}
+</script>
+</body>
+</html>
