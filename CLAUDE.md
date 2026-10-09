@@ -32,7 +32,7 @@
   | 層 | 位置 | 職責 | 禁止 |
   |----|------|------|------|
   | 狀態寫入端（hooks） | `scripts/pet-state.sh`、`set_state.py`、`hooks/hooks.json` | 依 Claude Code hook 事件建立／更新 `~/.terminalpet/sessions/<sid>.json` | 不 import PySide6、不碰 UI |
-  | 顯示端（桌寵） | `pet.py` | 讀 session 檔、彙整狀態、顯示與右鍵操作；只寫自己的設定檔 `config.json` | 不建立、不改寫 session 檔（只允許刪除：過期清理與使用者手動移除） |
+  | 顯示端（桌寵） | `pet.py` | 讀 session 檔、彙整狀態、顯示與右鍵操作；只寫自己的設定檔 `config.json`；可唯讀對話紀錄檔的標題（`wt_jump.py`，切換到終端機用，不讀對話內容、不寫入） | 不建立、不改寫 session 檔（只允許刪除：過期清理與使用者手動移除） |
   | 安裝／打包 | `install.py`、`installer/`、`build/`、`scripts/build.ps1` | 安裝 hooks、打包 exe | 不放執行期邏輯 |
 
   檢查方式：`grep -n "write_text\|open(.*w" pet.py` 只應出現 `CONFIG_FILE`；`grep -n PySide6 set_state.py scripts/pet-state.sh` 應無結果。

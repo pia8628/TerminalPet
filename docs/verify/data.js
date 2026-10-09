@@ -171,6 +171,132 @@ window.VERIFY_DATA = {
               "crossEnv": false
             }
           ]
+        },
+        {
+          "id": "03-menu-switch-to-terminal",
+          "title": "03 右鍵「切換到終端機」（檢查點）",
+          "items": [
+            {
+              "id": "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-03",
+              "text": "**前置**：先在終端機跑一次 `python install.py`（讓 hook 用到 02 卡的新版腳本），然後重開桌寵；每個要測的 Claude Code 分頁都先隨便問一句話，讓狀態檔記下紀錄檔路徑。\n\n在 WT 裡開 2～3 個 Claude Code 分頁，先選中第 1 個，再切到別的程式（例如瀏覽器）。對桌寵按右鍵 → 選第 2 個 session 的子選單。\n\n預期：\n- 子選單依序是「切換到終端機」→「開啟資料夾」→「從清單移除」\n- 按「切換到終端機」後，WT **跳到最前面**（不是只在工作列閃），選中的分頁是那個 session 的分頁\n- 對**正在執行中**（分頁開頭是 `◐`／`◑`）的 session 做一次，也能切過去\n- 系統匣圖示按右鍵，也有同樣的「切換到終端機」且能切",
+              "spec": {
+                "ref": "delta.md AC-JUMP-03、AC-JUMP-05、修改後的 AC-OPS-05",
+                "quote": "右鍵 → `abc123` 的子選單 →「切換到終端機」：WT 視窗移到最前面，選中的分頁變成第 2 個"
+              },
+              "risk": "high",
+              "riskReason": "整個跳轉功能的地基；「從桌寵點擊後 Windows 允不允許把 WT 帶到前面」AI 只能用模擬條件測，真正點擊沒人驗過",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_OPS_05_session_submenu_order、test_AC_JUMP_03_switch_item_jumps_with_that_sessions_transcript；tests/test_wt_jump.py::test_AC_JUMP_05_status_prefixes_match"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "建出真的 PetWindow 與右鍵選單、對「切換到終端機」呼叫 trigger()：結果 ok，WT 選中 `✳ Cladue mod 區塊修改` 並在最前面；`◐ Claude Code` 也切得到；子選單順序正確"
+                }
+              },
+              "manualOnly": true,
+              "manualOnlyReason": "AI 沒辦法真的用滑鼠點桌寵，Windows 只在「剛被使用者點過」的程式允許搶前景；這裡不過，04～06 卡蓋在上面全部白做，而且要等真的用起來才會發現",
+              "manualSuggested": false,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-04",
+              "text": "開**兩個** WT 視窗：A 視窗裡有某個 Claude Code session，B 視窗放最前面。把 A 視窗**最小化**，記下 B 視窗目前選中哪個分頁。對桌寵右鍵 → A 的那個 session →「切換到終端機」。\n\n預期：\n- A 視窗還原、跑到最前面，選中那個 session 的分頁\n- B 視窗選中的分頁沒變",
+              "spec": {
+                "ref": "delta.md AC-JUMP-04",
+                "quote": "第一個 WT 視窗還原並移到最前面……第二個 WT 視窗的分頁選取不變"
+              },
+              "risk": "medium",
+              "riskReason": "本機只有 1 個 WT 視窗，多視窗情境 AI 沒測過",
+              "coverage": {
+                "auto": {
+                  "covered": false,
+                  "ref": ""
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "單一視窗：最小化後觸發 → 結果 ok、視窗還原、選中目標分頁、成為前景（141～225 ms）"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "要兩個 WT 視窗；錯了一眼就看得出來",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/03-menu-switch-to-terminal/AC-JUMP-06",
+              "text": "在某個 Claude Code 分頁輸入 `/rename 跳轉測試`，等分頁標題變成新名字後，切到別的分頁，再從桌寵右鍵 → 那個 session →「切換到終端機」。\n\n預期：\n- 切到標題為 `✳ 跳轉測試` 的分頁",
+              "spec": {
+                "ref": "delta.md AC-JUMP-06",
+                "quote": "使用者之後以 `/rename` 改名為 `跳轉功能`……切到 `✳ 跳轉功能` 那個分頁"
+              },
+              "risk": "medium",
+              "riskReason": "AI 只能用假紀錄檔模擬改名，真的 `/rename` 寫進紀錄檔的格式沒實測",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py::test_AC_JUMP_06_custom_title_overrides_later_ai_title、test_AC_JUMP_06_renamed_title_finds_renamed_tab"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "假紀錄檔依序寫 ai-title → custom-title `iPAS AI 中級戰情室` → ai-title，觸發後選中 `✳ iPAS AI 中級戰情室`"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "要真的執行 `/rename`；錯了很容易看出來",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/03-menu-switch-to-terminal/title-and-match-rules",
+              "text": "標題擷取與分頁比對規則：只讀紀錄檔最後 1 MB、改名優先、空改名退回自動標題、讀不到當成沒標題；分頁要完全相同或只多一個狀態前綴才算同名（`.env` 不等於 `✳ env`）。",
+              "spec": {
+                "ref": "delta.md 名詞定義「session 標題」「狀態前綴」「分頁比對」",
+                "quote": ""
+              },
+              "risk": "low",
+              "riskReason": "純函式，有大量測試並做過反向確認",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_wt_jump.py（標題規則、1 MB 邊界、AC-JUMP-05／13／14／17／21 共 30 餘組）"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "實測找不到標題／找不到同名分頁／只有開頭相同的標題時都回報 no_title／no_match，且前景視窗與選中分頁都沒被動到"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/03-menu-switch-to-terminal/background-and-non-windows",
+              "text": "跳轉在背景執行緒進行，不卡桌寵；非 Windows 系統子選單沒有「切換到終端機」。",
+              "spec": {
+                "ref": "delta.md 名詞定義「跳轉處理不卡桌寵」、AC-JUMP-08（選單部分）",
+                "quote": ""
+              },
+              "risk": "low",
+              "riskReason": "有測試並做過反向確認；非 Windows 只能模擬",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_jump_runs_in_background_and_result_returns_on_main_thread、test_jump_errors_are_reported_not_raised、test_AC_JUMP_08_no_switch_item_on_non_windows"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "實際觸發時 trigger() 0.3～2.3 ms 就返回，處理 73～114 ms 期間主執行緒 5 ms 計時器持續跳動 14～21 次"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }

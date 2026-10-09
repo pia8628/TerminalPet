@@ -11,12 +11,13 @@
 
 import json
 import sys
+import threading
 import time
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QLockFile, QPoint, QRect, QSize, Qt, QTimer, QUrl
+from PySide6.QtCore import QFileSystemWatcher, QLockFile, QObject, QPoint, QRect, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import (
     QAction,
     QActionGroup,
@@ -31,6 +32,8 @@ from PySide6.QtGui import (
     QPixmap,
 )
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon, QToolTip, QWidget
+
+import wt_jump
 
 STATE_DIR = Path.home() / ".terminalpet"
 # 每個 Claude Code session 各寫一個狀態檔到這個資料夾（由 pet-state.sh 寫入）。
@@ -123,6 +126,7 @@ class Session:
     ts: float       # 最後一次 hook 更新
     start: float    # 第一次出現，用來固定排序
     label: str = ""
+    transcript: str = ""  # 對話紀錄檔路徑（跳轉時讀 session 標題用；假 session 為空）
 
 
 def effective_state(raw: str, age: float) -> str:
@@ -178,6 +182,7 @@ def load_sessions(now: float | None = None, cache: dict | None = None) -> list[S
             since=since,
             ts=ts,
             start=start,
+            transcript=str(data.get("transcript") or ""),
         ))
     for name in list(cache):
         if name not in seen_names:
@@ -292,6 +297,30 @@ def dot_pixmap(state: str, size: int = 32) -> QPixmap:
     return pm
 
 
+class JumpRunner(QObject):
+    """在背景執行緒跑「切換到終端機」（讀標題＋UI Automation），結果用 Qt signal 送回主執行緒。
+
+    背景處理期間主執行緒照常跑事件迴圈，桌寵的燈號、閃燈、拖曳、右鍵都不受影響。
+    """
+
+    finished = Signal(object)  # wt_jump.JumpResult，在主執行緒收到
+
+    def __init__(self, parent=None, job=None):
+        super().__init__(parent)
+        self._job = job  # 測試可換成假的跳轉函式；None 表示用 wt_jump.jump_to_session
+
+    def start(self, transcript: str) -> None:
+        threading.Thread(target=self._run, args=(transcript,), daemon=True, name="wt-jump").start()
+
+    def _run(self, transcript: str) -> None:
+        job = self._job or wt_jump.jump_to_session
+        try:
+            result = job(transcript)
+        except Exception:  # 背景執行緒的錯誤不能讓桌寵中止
+            result = wt_jump.JumpResult(wt_jump.FAILED)
+        self.finished.emit(result)  # 跨執行緒發送，Qt 會排進主執行緒處理
+
+
 class PetWindow(QWidget):
     def __init__(self, config: dict):
         super().__init__()
@@ -306,6 +335,9 @@ class PetWindow(QWidget):
         self._hits: list[tuple[QRect, Session | None]] = []
         self._tray: QSystemTrayIcon | None = None
         self._tray_state = None
+        self._jumper = JumpRunner(self)
+        self._jumper.finished.connect(self._on_jump_finished)
+        self._last_jump: wt_jump.JumpResult | None = None
 
         # 無邊框 + 永遠置頂 + Tool（避免出現在工作列）
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
@@ -548,6 +580,8 @@ class PetWindow(QWidget):
         if self.sessions:
             for s in self.sessions:
                 sub = menu.addMenu(QIcon(dot_pixmap(s.state)), session_text(s, now))
+                if wt_jump.supported():
+                    sub.addAction("切換到終端機", lambda t=s.transcript: self._jump_to(t))
                 if s.cwd:
                     sub.addAction("開啟資料夾", lambda c=s.cwd: QDesktopServices.openUrl(
                         QUrl.fromLocalFile(c)))
@@ -596,6 +630,14 @@ class PetWindow(QWidget):
         except OSError:
             pass
         self.refresh()
+
+    # ---- 切換到終端機 ----
+    def _jump_to(self, transcript: str):
+        self._jumper.start(transcript)
+
+    def _on_jump_finished(self, result):
+        # 目前只記下結果；跳不過去時的提示屬於後續功能
+        self._last_jump = result
 
     def _clear_idle(self):
         for s in self.sessions:

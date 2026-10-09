@@ -14,7 +14,7 @@
 |------|----|--------|------|------|
 | 1 | 01-可行性實驗 | 是 | 已驗收 | 2026-10-09 驗收；delta 已加入 `◑`、terminalTitleFromRename=false 列入 Out of Scope |
 | 2 | 02-寫入端記錄對話紀錄檔路徑 | 否 | 已完成（待人工驗收） | 62 測試全綠 |
-| 3 | 03-右鍵「切換到終端機」 | 是 | 施工中 | 依賴 01、02 |
+| 3 | 03-右鍵「切換到終端機」 | 是 | 已完成（待人工驗收） | 106 測試全綠；檢查點停下 |
 | 4 | 04-跳不過去時的提示與保護 | 否 | 待做 | 依賴 03 |
 | 5 | 05-點圓點或清單列直接跳轉 | 否 | 待做 | 依賴 03 |
 | 6 | 06-點小狼跳到最需要注意的 session | 否 | 待做 | 依賴 05 |
@@ -34,3 +34,6 @@
 - 01 卡（給 03、04 卡）：UIA `Select` 會順帶把 WT 帶到前景；建議順序「IsIconic 才 SW_RESTORE → Select → SetForegroundWindow」，以 `GetForegroundWindow()==hwnd` 判定 AC-JUMP-19；改名為空字串時要退回 ai-title
 - 02 卡：新測試 T15～T18（test_pet_state）、T11（test_set_state）尚未補進 `tests/cases/狀態寫入.md`、`tests/cases/手動測試工具.md` 案例表（使用者 review 過的表，子代理未擅改）——待使用者決定是否補
 - 02 卡：真實 session 要更新 plugin／重跑 install.py 後，hook 才會寫入 `transcript`
+- 03 卡：本機 hook 是 install.py 安裝的 `~/.claude/scripts/pet-state.sh`（舊版），驗收前需使用者重跑 `python install.py`
+- 03 卡：`CLAUDE.md` 架構表「位置」欄仍只寫 `pet.py`，`wt_jump.py` 只註明在職責欄——是否補進位置欄待使用者決定
+- 03 卡（給 04 卡）：`wt_jump.jump_to_session()` 回傳 `JumpResult(code, matches)`，code 七種（ok/no_title/no_window/no_match/ambiguous/failed/unsupported）；切換段 `_switch` 每步前可插取消檢查；`JumpRunner` + `_on_jump_finished` 目前只存結果
