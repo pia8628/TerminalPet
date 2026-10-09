@@ -209,6 +209,17 @@ def aggregate_state(sessions: list[Session]) -> str:
     return max((s.state for s in sessions), key=STATE_PRIORITY.__getitem__)
 
 
+def wolf_jump_target(sessions: list[Session]) -> Session | None:
+    """點小狼要跳去的 session：小狼顯示的那個狀態（aggregate_state）中首次出現最早者。
+
+    全部 idle（含逾時轉 idle）或沒有 session 時回 None，表示點了沒有反應。
+    """
+    state = aggregate_state(sessions)
+    if state == "idle":
+        return None
+    return min((s for s in sessions if s.state == state), key=lambda s: (s.start, s.sid))
+
+
 def format_elapsed(seconds: float) -> str:
     seconds = max(0, int(seconds))
     if seconds < 60:
@@ -667,7 +678,8 @@ class PetWindow(QWidget):
 
     # ---- 拖曳與點一下 ----
     # 左鍵按下到放開之間，移動距離超過系統拖曳門檻（QApplication.startDragDistance()）才算拖曳：
-    # 移動桌寵並記住位置。未超過門檻算「點一下」：桌寵不動、不記位置，點在圓點／清單列上才跳轉。
+    # 移動桌寵並記住位置。未超過門檻算「點一下」：桌寵不動、不記位置，
+    # 點在圓點／清單列（紅綠燈版）或小狼（動物版）上才跳轉。
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
             self._press_global = event.globalPosition().toPoint()
@@ -697,9 +709,17 @@ class PetWindow(QWidget):
             self._on_click(event.position().toPoint())
 
     def _on_click(self, pos: QPoint):
-        """點一下：紅綠燈版點在 session 的圓點或清單列上就切到它的終端機，其他位置沒有反應。"""
-        if self.config["theme"] != "light" or not wt_jump.supported():
-            return  # 動物版點擊另行處理；非 Windows 不動作、不出提示
+        """點一下：紅綠燈版點在 session 的圓點或清單列上就切到它的終端機；
+        動物版點在小狼上就切到最需要注意的 session（見 wolf_jump_target）。其他位置沒有反應。"""
+        if not wt_jump.supported():
+            return  # 非 Windows 不動作、不出提示
+        if self.config["theme"] == "animal":
+            # 小狼下方的 session 小圓點／清單列目前點了沒反應
+            if self._wolf_rect.contains(pos):
+                target = wolf_jump_target(self.sessions)
+                if target:  # 全部 idle 或沒有 session：沒有反應
+                    self._jump_to(target.transcript)
+            return
         for rect, s in self._hits:
             if rect.contains(pos):
                 if s:  # 沒有 session 時那顆灰點（s 為 None）點了沒反應

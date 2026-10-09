@@ -477,6 +477,84 @@ window.VERIFY_DATA = {
               "crossEnv": false
             }
           ]
+        },
+        {
+          "id": "06-click-wolf-to-jump",
+          "title": "06 點小狼跳到最需要注意的 session",
+          "items": [
+            {
+              "id": "click-to-terminal/06-click-wolf-to-jump/AC-JUMP-09-10-rule",
+              "text": "**請驗算挑選規則**（不用操作，看表判斷對不對）。規則：照 waiting → done → working → thinking 的順序，找第一個有 session 的狀態；同狀態挑**首次出現最早**的；全部 idle 就不跳。\n\n| 情境 | session（狀態，首次出現） | 程式挑的 |\n|---|---|---|\n| 1 | A（working，100）、B（waiting，200）、C（waiting，300） | **B** |\n| 2 | A（thinking，100）、B（done，200） | **B** |\n| 3 | A（idle）、B（working 但 601 秒沒更新 → 逾時轉 idle）、C（done 但 1801 秒沒更新 → 逾時轉 idle） | **不跳** |\n\n預期：三個答案都符合你心中「最需要我處理的那個」。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-09、10、11",
+                "quote": "切到 B 的分頁（狀態最需要注意者中首次出現最早的）"
+              },
+              "risk": "high",
+              "riskReason": "排序與逾時規則屬業務規則（紅線 2），AI 只能說測試通過，不能宣告算對",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_JUMP_09_wolf_target_is_earliest_of_most_urgent_state、test_AC_JUMP_10_wolf_target_follows_waiting_done_working_thinking_order、test_AC_JUMP_11_wolf_target_none_when_busy_sessions_timed_out"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台系統滑鼠點小狼：情境 1、2 都只觸發 B；情境 3 與沒有 session 點了無反應、無提示"
+                }
+              },
+              "manualOnly": true,
+              "manualOnlyReason": "紅線 2：涉及時間排序與逾時規則，必須由你驗算；看表即可，約 1 分鐘",
+              "manualSuggested": false,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/06-click-wolf-to-jump/real-click-wolf",
+              "text": "動物版（`python pet.py` 不帶參數），讓某個 Claude Code session 停在等你批准（小狼變紅），切到別的程式後**左鍵點一下小狼**。\n\n預期：\n- WT 跳到最前面，選中那個等批准的 session 的分頁\n- 桌寵沒移動\n- 全部 session 都閒置時點小狼，畫面完全沒動靜",
+              "spec": {
+                "ref": "delta.md AC-JUMP-09、11",
+                "quote": ""
+              },
+              "risk": "medium",
+              "riskReason": "實機跳轉走 03～05 卡同一條流程，但小狼這個入口沒在真的 WT 切過分頁",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_JUMP_09_click_wolf_jumps_to_earliest_waiting、test_AC_JUMP_11_click_wolf_all_idle_or_timed_out_does_nothing"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台點小狼 → 紀錄檔不存在時跳轉結果 no_title 並出提示，證明入口接上整條跳轉流程"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "錯了一眼就看得到",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/06-click-wolf-to-jump/outside-wolf-non-windows",
+              "text": "動物版點小狼以外的位置（含下方小圓點）沒反應；非 Windows 點小狼沒反應。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-08；06 卡實作備註",
+                "quote": ""
+              },
+              "risk": "low",
+              "riskReason": "有測試並做過反向確認",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_animal_click_outside_wolf_does_nothing、test_AC_JUMP_08_click_wolf_on_non_windows_does_nothing"
+                },
+                "agent": {
+                  "covered": true,
+                  "how": "真實平台點小狼下方小圓點 → 沒有反應"
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }

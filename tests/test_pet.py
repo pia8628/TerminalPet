@@ -648,3 +648,134 @@ def test_animal_theme_click_does_not_move_or_save(light_pet):
 
     assert w.pos() == before
     assert w.saves == []
+
+
+# ---- 點小狼跳到最需要注意的 session（06 卡） ----
+
+def fake(sid: str, state: str, start: float) -> Session:
+    return Session(sid=sid, state=state, project=sid, cwd="", since=start, ts=start, start=start,
+                   transcript=f"C:/t/{sid}.jsonl")
+
+
+def test_AC_JUMP_09_wolf_target_is_earliest_of_most_urgent_state():
+    sessions = [fake("A", "working", 100), fake("C", "waiting", 300), fake("B", "waiting", 200)]
+    assert pet.wolf_jump_target(sessions).sid == "B"
+
+
+def test_AC_JUMP_10_wolf_target_follows_waiting_done_working_thinking_order():
+    assert pet.wolf_jump_target([fake("A", "thinking", 100), fake("B", "done", 200)]).sid == "B"
+    assert pet.wolf_jump_target([fake("A", "thinking", 100), fake("B", "working", 200)]).sid == "B"
+    assert pet.wolf_jump_target([fake("A", "idle", 100), fake("B", "thinking", 200)]).sid == "B"
+    assert pet.wolf_jump_target([fake("A", "done", 300), fake("B", "waiting", 400)]).sid == "B"
+
+
+def test_AC_JUMP_09_wolf_target_matches_wolf_display_state():
+    # 跳去的 session 一定是小狼正在顯示的那個狀態
+    for states in (("working", "done"), ("thinking", "working", "waiting"), ("idle", "thinking")):
+        sessions = [fake(f"s{i}", st, i) for i, st in enumerate(states)]
+        assert pet.wolf_jump_target(sessions).state == aggregate_state(sessions)
+
+
+def test_AC_JUMP_11_wolf_target_none_when_all_idle_or_empty():
+    assert pet.wolf_jump_target([]) is None
+    assert pet.wolf_jump_target([fake("A", "idle", 100), fake("B", "idle", 200)]) is None
+
+
+def test_AC_JUMP_11_wolf_target_none_when_busy_sessions_timed_out(sessions_dir):
+    write_session(sessions_dir, "A", "working", age=601, start=100)
+    write_session(sessions_dir, "B", "thinking", age=601, start=200)
+    write_session(sessions_dir, "C", "done", age=1801, start=300)
+
+    sessions = load_sessions(NOW)
+
+    assert [s.state for s in sessions] == ["idle", "idle", "idle"]
+    assert pet.wolf_jump_target(sessions) is None
+
+
+@pytest.fixture
+def animal_pet(qapp, sessions_dir, monkeypatch):
+    """動物版桌寵（Windows）；sessions 為 (sid, 狀態, 首次出現, 距今秒數)，記下觸發的跳轉。"""
+    from PySide6.QtCore import QPoint
+    monkeypatch.setattr(pet, "CONFIG_FILE", sessions_dir / "config.json")  # 不碰真正的設定檔
+    windows = []
+
+    def make(*sessions, labels=False):
+        monkeypatch.setattr(pet.wt_jump, "supported", lambda: True)
+        now = time.time()
+        for sid, state, start, age in sessions:
+            data = {"state": state, "ts": now - age, "since": now - age, "start": start,
+                    "sid": sid, "project": sid, "cwd": "", "transcript": f"C:/t/{sid}.jsonl"}
+            (sessions_dir / f"{sid}.json").write_text(json.dumps(data), encoding="utf-8")
+        config = dict(pet.DEFAULT_CONFIG, theme="animal", show_labels=labels)
+        w = pet.PetWindow(config)
+        windows.append(w)
+        w.move(QPoint(400, 300))
+        w.started, w.saves = [], []
+        monkeypatch.setattr(w._jumper, "start", w.started.append)
+        monkeypatch.setattr(pet, "save_config", lambda c: w.saves.append(dict(c)))
+        return w
+
+    yield make
+    for w in windows:
+        w.timer.stop()
+        w.deleteLater()
+
+
+def test_AC_JUMP_09_click_wolf_jumps_to_earliest_waiting(animal_pet):
+    w = animal_pet(("A", "working", 100, 0), ("B", "waiting", 200, 0), ("C", "waiting", 300, 0))
+    before = w.pos()
+
+    press_move_release(w, w._wolf_rect.center())
+
+    assert w.started == ["C:/t/B.jsonl"]
+    assert w.pos() == before
+    assert w.saves == []
+
+
+def test_AC_JUMP_10_click_wolf_jumps_to_done_over_thinking(animal_pet):
+    w = animal_pet(("A", "thinking", 100, 0), ("B", "done", 200, 0))
+
+    press_move_release(w, w._wolf_rect.center())
+
+    assert w.started == ["C:/t/B.jsonl"]
+
+
+def test_AC_JUMP_11_click_wolf_all_idle_or_timed_out_does_nothing(animal_pet, qapp):
+    w = animal_pet(("A", "idle", 100, 0), ("B", "working", 200, 601), ("C", "done", 300, 1801))
+    assert {s.state for s in w.sessions} == {"idle"}
+
+    press_move_release(w, w._wolf_rect.center())
+    wait_for(qapp, lambda: False, timeout=0.1)
+
+    assert w.started == []
+    assert not w._hint.isVisible()
+
+
+def test_AC_JUMP_11_click_wolf_without_sessions_does_nothing(animal_pet, qapp):
+    w = animal_pet()
+
+    press_move_release(w, w._wolf_rect.center())
+    wait_for(qapp, lambda: False, timeout=0.1)
+
+    assert w.started == []
+    assert not w._hint.isVisible()
+
+
+def test_animal_click_outside_wolf_does_nothing(animal_pet):
+    # 小狼下方的 session 小圓點／清單列目前點了沒反應（delta AC-OPS-04 條文待使用者確認）
+    w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0))
+    assert w._hits and not any(w._wolf_rect.intersects(rect) for rect, _s in w._hits)
+
+    for rect, _s in w._hits:
+        press_move_release(w, rect.center())
+
+    assert w.started == []
+
+
+def test_AC_JUMP_08_click_wolf_on_non_windows_does_nothing(animal_pet, monkeypatch):
+    w = animal_pet(("A", "waiting", 100, 0))
+    monkeypatch.setattr(pet.wt_jump, "supported", lambda: False)
+
+    press_move_release(w, w._wolf_rect.center())
+
+    assert w.started == []
