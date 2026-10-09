@@ -665,6 +665,60 @@ window.VERIFY_DATA = {
             "at": "2026-10-09T22:57:41+08:00",
             "note": "使用者 2026-10-09 匯出結果：必測項（挑選規則驗算）與實點小狼通過"
           }
+        },
+        {
+          "id": "07-animal-dots-to-jump",
+          "title": "07 動物版點小圓點或清單列直接跳轉（驗收後補做）",
+          "items": [
+            {
+              "id": "click-to-terminal/07-animal-dots-to-jump/AC-OPS-04-animal",
+              "text": "動物版（`python pet.py`），開著至少 2 個 Claude Code session（小狼下方才會有小圓點）。切到別的程式後，**左鍵點一下小狼下方某個小圓點**；再開「顯示專案名稱」，點另一個 session 那一列的文字。\n\n預期：\n- 每次都切到**被點的那個** session 的分頁（不是小狼挑的那個）\n- 桌寵沒移動\n- 點小狼本身仍跳到最需要注意的 session",
+              "spec": {
+                "ref": "delta.md 修改後的 AC-OPS-04",
+                "quote": "點的位置在 session 圓點、清單列或小狼上時……跳轉"
+              },
+              "risk": "medium",
+              "riskReason": "AI 只用 Qt 事件測過，動物版小圓點沒在真實 WT 上點過",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_OPS_04_animal_click_dot_jumps_to_that_session、test_AC_JUMP_02_animal_click_row_text_jumps_when_labels_shown"
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "錯了一眼就看得到",
+              "manualSuggested": true,
+              "crossEnv": false
+            },
+            {
+              "id": "click-to-terminal/07-animal-dots-to-jump/drag-non-windows-outside",
+              "text": "動物版從小圓點拖曳會移動並記位置、不跳轉；非 Windows 點小圓點沒反應；點小狼與小圓點以外的地方沒反應。",
+              "spec": {
+                "ref": "delta.md AC-JUMP-07、08 的動物版對應",
+                "quote": ""
+              },
+              "risk": "low",
+              "riskReason": "與紅綠燈版共用同一段判定，有測試並做過反向確認",
+              "coverage": {
+                "auto": {
+                  "covered": true,
+                  "ref": "tests/test_pet.py::test_AC_JUMP_07_animal_drag_from_dot_moves_without_jump、test_AC_JUMP_08_animal_click_dot_on_non_windows_does_nothing、test_animal_click_outside_wolf_and_dots_does_nothing"
+                },
+                "agent": {
+                  "covered": false,
+                  "how": ""
+                }
+              },
+              "manualOnly": false,
+              "manualOnlyReason": "",
+              "manualSuggested": false,
+              "crossEnv": false
+            }
+          ]
         }
       ]
     }

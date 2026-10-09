@@ -761,13 +761,57 @@ def test_AC_JUMP_11_click_wolf_without_sessions_does_nothing(animal_pet, qapp):
     assert not w._hint.isVisible()
 
 
-def test_animal_click_outside_wolf_does_nothing(animal_pet):
-    # 小狼下方的 session 小圓點／清單列目前點了沒反應（delta AC-OPS-04 條文待使用者確認）
+def test_AC_OPS_04_animal_click_dot_jumps_to_that_session(animal_pet):
+    # 動物版小狼下方的小圓點：切到被點的那個 session，不是小狼挑的目標（07 卡）
     w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0))
     assert w._hits and not any(w._wolf_rect.intersects(rect) for rect, _s in w._hits)
+    before = w.pos()
 
-    for rect, _s in w._hits:
-        press_move_release(w, rect.center())
+    press_move_release(w, hit_of(w, "B").center())
+
+    assert w.started == ["C:/t/B.jsonl"]
+    assert w.pos() == before
+    assert w.saves == []
+
+
+def test_AC_JUMP_02_animal_click_row_text_jumps_when_labels_shown(animal_pet):
+    from PySide6.QtCore import QPoint
+    w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0), labels=True)
+    row = hit_of(w, "B")
+
+    press_move_release(w, QPoint(row.right() - 2, row.center().y()))  # 文字端
+
+    assert w.started == ["C:/t/B.jsonl"]
+
+
+def test_AC_JUMP_07_animal_drag_from_dot_moves_without_jump(animal_pet):
+    w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0))
+    before = w.pos()
+
+    press_move_release(w, hit_of(w, "B").center(), [(10, 0), (20, 0), (30, 0)])
+
+    assert w.pos() == before + pet.QPoint(30, 0)
+    assert w.saves and w.saves[-1]["pos"] == [w.x(), w.y()]
+    assert w.started == []
+
+
+def test_AC_JUMP_08_animal_click_dot_on_non_windows_does_nothing(animal_pet, monkeypatch):
+    w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0))  # 只有 1 個 session 時不畫小圓點
+    monkeypatch.setattr(pet.wt_jump, "supported", lambda: False)
+
+    press_move_release(w, hit_of(w, "A").center())
+
+    assert w.started == []
+
+
+def test_animal_click_outside_wolf_and_dots_does_nothing(animal_pet):
+    from PySide6.QtCore import QPoint
+    w = animal_pet(("A", "waiting", 100, 0), ("B", "done", 200, 0))
+    corner = QPoint(w.width() - 1, w.height() - 1)
+    assert not w._wolf_rect.contains(corner)
+    assert not any(rect.contains(corner) for rect, _s in w._hits)
+
+    press_move_release(w, corner)
 
     assert w.started == []
 

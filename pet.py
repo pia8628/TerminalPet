@@ -2,7 +2,7 @@
 
 一個透明、無邊框、永遠置頂的小視窗，讀取 ~/.terminalpet/sessions/ 底下
 每個 Claude Code session 的狀態檔，每個 session 各顯示一個燈。
-可用滑鼠拖曳；紅綠燈版左鍵點一下某個 session 的圓點（或清單列）可切到它的終端機分頁；
+可用滑鼠拖曳；左鍵點一下某個 session 的圓點（或清單列）可切到它的終端機分頁，動物版點小狼則切到最需要注意的 session；
 右鍵選單可切換外觀、顯示專案名稱、桌面通知等。
 
 兩種外觀（啟動參數會記住，之後不帶參數就沿用上次的外觀）：
@@ -709,16 +709,14 @@ class PetWindow(QWidget):
             self._on_click(event.position().toPoint())
 
     def _on_click(self, pos: QPoint):
-        """點一下：紅綠燈版點在 session 的圓點或清單列上就切到它的終端機；
+        """點一下：點在 session 的圓點或清單列上就切到它的終端機（兩種外觀皆同）；
         動物版點在小狼上就切到最需要注意的 session（見 wolf_jump_target）。其他位置沒有反應。"""
         if not wt_jump.supported():
             return  # 非 Windows 不動作、不出提示
-        if self.config["theme"] == "animal":
-            # 小狼下方的 session 小圓點／清單列目前點了沒反應
-            if self._wolf_rect.contains(pos):
-                target = wolf_jump_target(self.sessions)
-                if target:  # 全部 idle 或沒有 session：沒有反應
-                    self._jump_to(target.transcript)
+        if self.config["theme"] == "animal" and self._wolf_rect.contains(pos):
+            target = wolf_jump_target(self.sessions)
+            if target:  # 全部 idle 或沒有 session：沒有反應
+                self._jump_to(target.transcript)
             return
         for rect, s in self._hits:
             if rect.contains(pos):
