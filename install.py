@@ -139,8 +139,9 @@ def save_settings(settings: dict) -> None:
     # 先備份，萬一寫壞還能還原
     if SETTINGS_PATH.exists():
         shutil.copy2(SETTINGS_PATH, SETTINGS_PATH.with_suffix(".json.terminalpet.bak"))
+    # 固定 LF：Windows 預設會轉成 CRLF，讓同步 settings.json 的 repo 出現假修改
     SETTINGS_PATH.write_text(
-        json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
 
 
