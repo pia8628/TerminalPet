@@ -121,7 +121,7 @@ Claude Code hooks ──bash pet-state.sh <狀態>──▶ ~/.terminalpet/sessi
 | PostToolUse | working | 批准後工具跑完，紅燈切回綠燈 |
 | PermissionRequest | waiting | 權限對話框出現的當下 |
 | Notification | waiting | 只認 `permission_prompt`、`elicitation_dialog`、`agent_needs_input`，閒置提醒不算 |
-| Stop | done | |
+| Stop | done | 背景還有子代理或背景指令在跑時維持 working（還沒真的完成） |
 | SessionEnd | （刪除） | session 從燈列移除 |
 
 `pet-state.sh` 全程用 bash 內建指令（Windows Git Bash 上每個外部程式約 50–80ms），

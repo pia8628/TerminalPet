@@ -268,3 +268,51 @@ def test_T18_transcript_parsing_uses_only_bash_builtins():
     for line in lines:
         for tool in ("jq", "python", "sed ", "grep", "awk", "cat ", "$(", "`"):
             assert tool not in line, line
+
+
+# 實測 Claude Code 2.1.302 的 Stop 事件格式（2026-10-18 記錄）
+def bg_task(kind: str, status: str = "running") -> dict:
+    task = {"id": "t1", "type": kind, "status": status, "description": "背景工作"}
+    if kind == "shell":
+        task["command"] = 'for i in $(seq 1 9); do [ -f x ] && echo "]"; sleep 1; done'
+    if kind == "subagent":
+        task["agent_type"] = "general-purpose"
+    return task
+
+
+@needs_bash
+@pytest.mark.parametrize("kind", ["subagent", "shell"])
+def test_T19_AC_HOOK_17_stop_with_running_background_task_stays_working(home, kind):
+    run_hook(home, "done", payload={"session_id": "abc123", "stop_hook_active": False,
+                                    "background_tasks": [bg_task(kind)], "session_crons": []})
+
+    assert read(home, "abc123")["state"] == "working"
+
+
+@needs_bash
+def test_T19b_AC_HOOK_17_running_task_before_finished_one(home):
+    tasks = [bg_task("subagent"), bg_task("shell", "completed")]
+    run_hook(home, "done", payload={"session_id": "abc123", "background_tasks": tasks})
+
+    assert read(home, "abc123")["state"] == "working"
+
+
+@needs_bash
+@pytest.mark.parametrize("payload", [
+    {"background_tasks": [], "session_crons": []},
+    {"background_tasks": [bg_task("subagent", "completed")]},
+    {},  # 舊版 Claude Code 沒有這個欄位
+    {"background_tasks": [], "last_assistant_message": 'JSON 範例 {"status":"running"}'},
+])
+def test_T20_AC_HOOK_18_stop_without_running_background_task_is_done(home, payload):
+    run_hook(home, "done", payload={"session_id": "abc123", **payload})
+
+    assert read(home, "abc123")["state"] == "done"
+
+
+@needs_bash
+def test_T21_AC_HOOK_17_only_stop_is_affected(home):
+    """背景任務清單只影響 Stop；其他事件即使帶著清單也照原本對應寫入。"""
+    run_hook(home, "waiting", payload={"session_id": "abc123", "background_tasks": [bg_task("subagent")]})
+
+    assert read(home, "abc123")["state"] == "waiting"

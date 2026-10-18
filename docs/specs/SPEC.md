@@ -17,6 +17,7 @@
 |------|----------|------|
 | 2026-10-09 | 初版（v1）：盤點制度導入前已上線的既有行為（以程式碼實際行為為準），另列盤點疑點 | 首次開發（補記錄；使用者決定不送 Codex 審查） |
 | 2026-10-09 | 新增 JUMP 模組（點燈／清單列／小狼或右鍵切到 Windows Terminal 分頁、跳不過去時的提示）；HOOK 新增紀錄檔路徑欄位（US-HOOK-04、AC-HOOK-15～16）；修改 AC-OPS-04、AC-OPS-05、全域規則「單向資料流」、Out of Scope | click-to-terminal |
+| 2026-10-18 | Stop 時背景還有執行中的任務（子代理、背景指令等）改寫 working，不亮藍燈（事件對應表 Stop 備註、AC-HOOK-17～18） | 輕量通道，使用者確認 |
 
 ## 全域規則
 
@@ -49,7 +50,7 @@
 | PostToolUse | working | |
 | PermissionRequest | waiting | |
 | Notification | waiting | 只有 permission_prompt、elicitation_dialog、agent_needs_input 三種通知會觸發 |
-| Stop | done | |
+| Stop | done | 背景任務清單裡還有執行中的任務（子代理、背景指令等任何類型）時改寫 working |
 | SessionEnd | （刪除該 session 的狀態檔） | |
 
 - **AC-HOOK-01**（US-HOOK-01，成功）
@@ -116,6 +117,14 @@
   - Given：hook 資料沒有對話紀錄檔路徑（例如手動執行寫入端）
   - When：觸發會寫入狀態的事件
   - Then：紀錄檔路徑欄位為空字串，狀態照常寫入
+- **AC-HOOK-17**（US-HOOK-01，邊界）
+  - Given：session `abc123` 的主 agent 開了一個背景子代理（或背景指令），子代理還在跑
+  - When：主 agent 回合結束，觸發 Stop，事件資料的背景任務清單裡有一筆狀態為 running 的任務
+  - Then：狀態寫入 working（綠燈），不寫 done、不跳「已完成」通知；清單裡有多筆任務時，只要任一筆為 running 就算
+- **AC-HOOK-18**（US-HOOK-01，邊界）
+  - Given：session `abc123` 狀態為 working
+  - When：觸發 Stop，背景任務清單為空、清單裡沒有 running 的任務，或事件資料根本沒有背景任務清單（舊版 Claude Code）
+  - Then：狀態寫入 done；回覆文字裡出現 `"status":"running"` 字樣不影響判斷
 
 ## 模組：狀態判定（代號：SESS）
 

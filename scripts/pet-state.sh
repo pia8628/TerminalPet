@@ -66,6 +66,11 @@ esac
 # 這兩個工具是 Claude 在問你問題／等你核准計畫，實際上需要你介入
 [ "$state" = "working" ] && [[ $input =~ $re_ask ]] && state="waiting"
 
+# 主 agent 停下來，但還有子代理或背景指令在跑：工作還沒完，維持 working 不亮藍燈。
+# 字串值裡的引號都是跳脫過的（\"），所以只會比對到真正的欄位。
+re_bg='"background_tasks"[[:space:]]*:[[:space:]]*\[.*"status"[[:space:]]*:[[:space:]]*"running"'
+[ "$state" = "done" ] && [[ $input =~ $re_bg ]] && state="working"
+
 # cwd 在 JSON 裡是跳脫過的字串（Windows 路徑是雙反斜線 \\）。
 # 一律轉成正斜線：\\ → // → /，寫回 JSON 時就不必再處理跳脫。
 cwd=""
