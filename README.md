@@ -99,9 +99,26 @@ python install.py --uninstall
 寫入前會備份成 `settings.json.terminalpet.bak`。重複執行是安全的（冪等）。
 
 裝完後要**重啟 Claude Code session**（或開一次 `/hooks`）新的 hooks 才會生效。
-從舊版升級時也要更新 hooks（重跑 `install.py`，或在 Claude Code 更新 plugin），
-「點一下跳到終端機」才找得到 session 對應的分頁。
 桌寵本身沒開時，hooks 只是寫幾個小檔案，不影響 Claude Code 運作。
+
+### 3. 更新到新版
+
+桌寵和 hooks 要分開更新，**兩個都要做**（新功能常常兩邊都有改）：
+
+1. 桌寵：在 TerminalPet 資料夾執行 `git pull`（有新套件時再跑一次 `pip install -r requirements.txt`），然後右鍵「關閉桌寵」再重新開啟
+2. hooks（看你當初用哪種方式裝）：
+   - **方式 A（plugin）**：第三方 plugin 預設不會自動更新。在終端機執行
+     ```
+     claude plugin marketplace update terminalpet
+     claude plugin update terminalpet@terminalpet
+     ```
+     或在 Claude Code 裡開 `/plugin` → Installed → terminalpet → Update now。
+     更新後開新的 session，或在已開的 session 執行 `/reload-plugins`。
+     想以後自動更新：`/plugin` → Marketplaces → terminalpet → Enable auto-update
+   - **方式 B（install.py）**：`git pull` 之後重跑 `python install.py`，再重啟 Claude Code session
+
+> 2026-10-18 起（plugin 0.3.0）：主 agent 停下來時，如果背景還有子代理或背景指令在跑，燈會維持綠色，等全部跑完才亮藍燈。
+> 從 0.2.0 升級的 plugin 使用者，也會一併拿到「點一下跳到終端機」需要的 hooks 更新。
 
 ## 運作方式
 
