@@ -38,7 +38,7 @@ python pet.py light    # 紅綠燈版
 
 | 狀態 | 動物版 | 燈號 | 意思 | 何時消失 |
 |------|--------|------|------|----------|
-| waiting | <img src="assets/wolf_waiting.png" width="60" alt="waiting"> | 🔴 紅（閃爍） | **需要你介入**：等批准、Claude 在問你問題、等你核准計畫 | 你處理之後；不會自己逾時 |
+| waiting | <img src="assets/wolf_waiting.png" width="60" alt="waiting"> | 🔴 紅（閃爍） | **需要你介入**：等批准、Claude 在問你問題、等你核准計畫 | 你處理之後；不會轉灰，12 小時沒動靜才清掉 |
 | done | <img src="assets/wolf_done.png" width="60" alt="done"> | 🔵 藍 | 做完了，換你 | 30 分鐘後轉為閒置 |
 | working | <img src="assets/wolf_working.png" width="60" alt="working"> | 🟢 綠 | 自己在跑工具 | 10 分鐘沒動靜轉為閒置（多半是被 Esc 中斷） |
 | thinking | <img src="assets/wolf_thinking.png" width="60" alt="thinking"> | 🟡 黃 | 收到你的指示，思考中 | 同上 |
