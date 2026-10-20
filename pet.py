@@ -601,7 +601,7 @@ class PetWindow(QWidget):
         y = g.bottom() - h + 1 if g.center().y() > screen.center().y() else g.y()
         self.setFixedSize(w, h)
         if self.isVisible():
-            self.move(x, y)
+            self.move(keep_on_screen(QPoint(x, y), QSize(w, h), screen))
 
     # ---- 繪製 ----
     def paintEvent(self, _event):
@@ -695,7 +695,8 @@ class PetWindow(QWidget):
                 if (pos - self._press_global).manhattanLength() <= QApplication.startDragDistance():
                     return  # 還沒超過門檻：可能只是點一下時手抖，不移動
                 self._dragged = True
-            self.move(pos - self._drag_offset)
+            screen = (QApplication.screenAt(pos) or self.screen()).availableGeometry()
+            self.move(keep_on_screen(pos - self._drag_offset, self.size(), screen))
             event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -836,14 +837,22 @@ class PetWindow(QWidget):
         self._tray.setToolTip("TerminalPet\n" + self._summary_tooltip())
 
 
+def keep_on_screen(point: QPoint, size: QSize, area: QRect) -> QPoint:
+    """把視窗左上角推回螢幕可用範圍內，讓整個視窗都在範圍裡；壓到工作列會被工作列蓋住看不到。"""
+    x = max(area.left(), min(point.x(), area.right() - size.width() + 1))
+    y = max(area.top(), min(point.y(), area.bottom() - size.height() + 1))
+    return QPoint(x, y)
+
+
 def initial_position(pet: PetWindow, app: QApplication) -> QPoint:
     pos = pet.config.get("pos")
     if isinstance(pos, list) and len(pos) == 2:
         point = QPoint(int(pos[0]), int(pos[1]))
-        # 上次的位置可能在已拔掉的外接螢幕上，確認還看得到才沿用
+        # 上次的位置可能在已拔掉的外接螢幕上，確認還看得到才沿用，並推回可用範圍內
         rect = QRect(point, pet.size())
-        if any(sc.availableGeometry().intersects(rect) for sc in app.screens()):
-            return point
+        for sc in app.screens():
+            if sc.availableGeometry().intersects(rect):
+                return keep_on_screen(point, pet.size(), sc.availableGeometry())
     screen = app.primaryScreen().availableGeometry()
     return QPoint(screen.right() - pet.width() - 40, screen.bottom() - pet.height() - 40)
 

@@ -577,6 +577,45 @@ def test_AC_JUMP_07_drag_30px_from_dot_moves_and_saves_without_jump(light_pet):
     assert w.started == []  # 不切換分頁
 
 
+def test_AC_OPS_17_drag_onto_taskbar_stops_at_available_area_edge(light_pet):
+    """拖曳放開在工作列（螢幕可用範圍外）上：桌寵要整個留在可用範圍內，否則會被工作列蓋住看不到。"""
+    w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
+    area = w.screen().availableGeometry()
+    down = area.bottom() - w.y() + 20  # 往下拖到桌寵頂端超出可用範圍下緣 20 px
+
+    press_move_release(w, hit_of(w, "abc123").center(), [(0, down)])
+
+    assert area.contains(w.frameGeometry())
+    assert w.y() == area.bottom() - w.height() + 1  # 停在下緣
+    assert w.saves[-1]["pos"] == [w.x(), w.y()]  # 記住的是停住的位置
+
+
+def test_AC_OPS_17_growing_past_screen_edge_is_pushed_back(light_pet):
+    from PySide6.QtCore import QPoint
+    w = light_pet(*[(f"session-with-a-long-project-name-{i}", "", "") for i in range(3)])
+    area = w.screen().availableGeometry()
+    w.show()
+    left = area.center().x() - w.width()  # 中心在左半部：固定左上角往右長
+    w.move(QPoint(left, 300))
+
+    w.config["show_labels"] = True  # 顯示專案名稱，桌寵變寬
+    w.refresh()
+
+    assert left + w.width() - 1 > area.right()  # 前提：照原本的長法會超出右緣
+    assert area.contains(w.frameGeometry())
+
+
+def test_AC_OPS_17_saved_position_overlapping_taskbar_is_pushed_back(pet_window, qapp):
+    w = pet_window(("abc123", "", ""))
+    area = qapp.primaryScreen().availableGeometry()
+    w.config["pos"] = [400, area.bottom() - 10]  # 上次記住的位置有一半壓在工作列上
+
+    point = pet.initial_position(w, qapp)
+
+    assert area.contains(pet.QRect(point, w.size()))
+    assert point.x() == 400  # 只推回超出的那一邊
+
+
 def test_AC_OPS_04_move_within_drag_threshold_is_a_click(light_pet):
     from PySide6.QtWidgets import QApplication
     w = light_pet(("abc123", "", "C:/t/abc123.jsonl"))
