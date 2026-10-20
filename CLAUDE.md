@@ -45,6 +45,8 @@
 - 分支策略採簡化版：`main` + `feature/*`。main 已受保護（GitHub ruleset `protect-main`）：不能直接 push，一律開 `feature/*` 分支 → PR → CI（lint、test）綠燈後由使用者在網頁按 Merge（要升級完整 Git Flow 時參考 dev-ci-setup skill）
 - `docs/specs/SPEC.md` 是系統行為的唯一真相總帳：開發任何功能前先讀；只寫行為不寫實作；只有 `/dev-verify-spec` 驗收通過的內容能合併進去（唯一例外：`/dev-spec` 輕量通道、經使用者確認的小改動，在版本紀錄補一行）
 - 規格用編號對帳：`US-代號-NN`、`AC-代號-NN`；任務卡、測試名稱、驗收 Hub 都引用同一組編號
+- 跑測試：`venv/Scripts/python -m pytest tests`（系統 Python 沒裝 pytest）；新電腦沒有 `venv/` 時，先照 `專案進度追蹤.md`「備忘」的開發環境步驟建立，並跑 `venv/Scripts/pre-commit install`，否則 commit 前不會自動檢查
+- 使用者回報「桌寵不見了」：先跑 `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/where-is-pet.ps1` 看視窗實際位置與螢幕可用範圍，再判斷原因（輸出是 Big5，在 Git Bash 裡要接 `| iconv -f CP950 -t UTF-8` 才看得懂）
 - 可遷移到其他專案的開發經驗 → 記入 `dev_exp.md`
 - 進度與待辦 → 更新 `專案進度追蹤.md`；延後的測試項目必須寫進去，不可只留在對話中
 - 環境變數一律放 `.env`（已在 .gitignore），程式碼中不得出現金鑰
